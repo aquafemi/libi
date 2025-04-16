@@ -3,7 +3,7 @@ import { View, ScrollView, StyleSheet, Image } from 'react-native';
 import { Text, Card, Title, Paragraph, ActivityIndicator, List, Avatar } from 'react-native-paper';
 import { getUserTopArtists, getUserTopTracks, getArtistInfo } from '../api/lastfm';
 import { getUsername } from '../utils/storage';
-import { getBestImage, getImageBySize, getArtistImage } from '../utils/imageHelper';
+import { getBestImage, getImageBySize, getArtistImage, getTrackImage } from '../utils/imageHelper';
 
 const StatsScreen = () => {
   const [topArtists, setTopArtists] = useState([]);
@@ -131,7 +131,7 @@ const StatsScreen = () => {
         {topTracks.slice(0, 5).map((track, index) => (
           <Card key={`track-card-${track.mbid || index}`} style={styles.trackCard}>
             <Card.Cover 
-              source={{ uri: getBestImage(track.image) }}
+              source={{ uri: getTrackImage(track) }}
               style={styles.trackCardImage}
               resizeMode="cover"
             />
@@ -157,7 +157,7 @@ const StatsScreen = () => {
             <Avatar.Image 
               {...props} 
               size={50} 
-              source={{ uri: getImageBySize(track.image, 'large') }} 
+              source={{ uri: getTrackImage(track) }} 
             />
           }
           right={props => <Text style={styles.rank}>#{index + 6}</Text>}

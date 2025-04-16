@@ -38,12 +38,34 @@ export const getArtistInfo = async (artist) => {
       params: {
         method: 'artist.getinfo',
         artist,
+        autocorrect: 1,
       },
     });
     return response.data;
   } catch (error) {
     console.error('Error fetching artist info:', error);
     throw error;
+  }
+};
+
+// Get artist info from MusicBrainz API
+export const getMusicBrainzArtistInfo = async (artistName) => {
+  try {
+    // Use the MusicBrainz API to search for an artist by name
+    const response = await axios.get('https://musicbrainz.org/ws/2/artist', {
+      params: {
+        query: artistName,
+        fmt: 'json',
+      },
+      headers: {
+        'User-Agent': 'Libi-App/1.0.0 (https://github.com/aquafemi/libi)',
+      },
+    });
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching MusicBrainz artist info:', error);
+    return null;
   }
 };
 

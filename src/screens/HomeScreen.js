@@ -3,7 +3,7 @@ import { View, FlatList, StyleSheet, Image } from 'react-native';
 import { Text, Card, Title, Paragraph, ActivityIndicator, Avatar } from 'react-native-paper';
 import { getUserRecentTracks } from '../api/lastfm';
 import { getUsername } from '../utils/storage';
-import { getBestImage, getImageBySize } from '../utils/imageHelper';
+import { getBestImage, getImageBySize, getTrackImage } from '../utils/imageHelper';
 
 const HomeScreen = () => {
   const [recentTracks, setRecentTracks] = useState([]);
@@ -48,7 +48,7 @@ const HomeScreen = () => {
   const renderTrackItem = ({ item }) => (
     <Card style={styles.card}>
       <Card.Cover 
-        source={{ uri: getBestImage(item.image) }} 
+        source={{ uri: getTrackImage(item) }} 
         style={styles.albumArt}
         resizeMode="cover"
       />
