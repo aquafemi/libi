@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { View, FlatList, StyleSheet, Linking } from 'react-native';
 import { Text, Card, Title, Paragraph, Button, ActivityIndicator } from 'react-native-paper';
-import { getUserTopArtists, getSimilarArtists, getArtistInfo } from '../api/lastfm';
+import { getUserTopArtists, getSimilarArtists, getArtistInfo, getMusicBrainzArtistInfo } from '../api/lastfm';
 import { getUsername } from '../utils/storage';
-import { getBestImage, getImageBySize, getArtistImage } from '../utils/imageHelper';
+import { getBestImage, getImageBySize, getArtistImage, extractWikimediaImage } from '../utils/imageHelper';
 
 const RecommendationsScreen = () => {
   const [recommendations, setRecommendations] = useState([]);
@@ -47,6 +47,9 @@ const RecommendationsScreen = () => {
         const allRecommendations = [];
         const seenArtists = new Set(topArtistsData.topartists.artist.map(a => a.name.toLowerCase()));
         
+        // Create a new array to hold all recommendations with their MusicBrainz info
+        const pendingRecommendations = [];
+        
         // Process similar artists
         for (const result of similarArtistsResults) {
           if (result?.similarartists?.artist) {
@@ -54,41 +57,52 @@ const RecommendationsScreen = () => {
               if (!seenArtists.has(artist.name.toLowerCase())) {
                 seenArtists.add(artist.name.toLowerCase());
                 
-                // Check if the artist has images, if not attempt to fetch artist info
-                if (!artist.image || !Array.isArray(artist.image) || !artist.image.length || !artist.image[0]['#text'] || artist.image[0]['#text'].trim() === '') {
-                  try {
-                    // Use a custom fallback URL based on artist name
-                    const fallbackImage = `https://via.placeholder.com/300?text=${encodeURIComponent(artist.name)}`;
-                    
-                    // We'll still add the artist with a fallback image for now
-                    allRecommendations.push({
-                      ...artist,
-                      // Add a placeholder for purchase links
-                      purchaseLinks: [
-                        { name: 'Bandcamp', url: `https://bandcamp.com/search?q=${encodeURIComponent(artist.name)}` },
-                        { name: 'iTunes', url: `https://music.apple.com/search?term=${encodeURIComponent(artist.name)}` },
-                      ],
-                      // Add a better default image
-                      defaultImage: fallbackImage
-                    });
-                  } catch (err) {
-                    console.error(`Error fetching info for artist ${artist.name}:`, err);
-                  }
-                } else {
-                  // Artist already has images, just add to recommendations
-                  allRecommendations.push({
-                    ...artist,
-                    // Add a placeholder for purchase links
-                    purchaseLinks: [
-                      { name: 'Bandcamp', url: `https://bandcamp.com/search?q=${encodeURIComponent(artist.name)}` },
-                      { name: 'iTunes', url: `https://music.apple.com/search?term=${encodeURIComponent(artist.name)}` },
-                    ]
-                  });
+                // Add purchase links and queue for MB processing
+                const artistWithLinks = {
+                  ...artist,
+                  purchaseLinks: [
+                    { name: 'Bandcamp', url: `https://bandcamp.com/search?q=${encodeURIComponent(artist.name)}` },
+                    { name: 'iTunes', url: `https://music.apple.com/search?term=${encodeURIComponent(artist.name)}` },
+                  ]
+                };
+                
+                // If there's no valid image, add a custom fallback (will be replaced by the avatar generator)
+                if (!artist.image || !Array.isArray(artist.image) || artist.image.length === 0) {
+                  artistWithLinks.defaultImage = `https://via.placeholder.com/300?text=${encodeURIComponent(artist.name)}`;
                 }
+                
+                pendingRecommendations.push(artistWithLinks);
               }
             }
           }
         }
+        
+        // Get MusicBrainz info for recommended artists (limit to 10 for performance)
+        const processedRecommendations = await Promise.all(
+          pendingRecommendations.slice(0, 10).map(async (artist) => {
+            try {
+              // Only fetch if artist has an mbid
+              if (artist.mbid) {
+                const mbInfo = await getMusicBrainzArtistInfo(artist.mbid);
+                if (mbInfo) {
+                  return {
+                    ...artist,
+                    mbArtistInfo: mbInfo
+                  };
+                }
+              }
+            } catch (error) {
+              console.error(`Error fetching MB info for artist ${artist.name}:`, error);
+            }
+            return artist;
+          })
+        );
+        
+        // Combine the processed artists with any remaining artists
+        allRecommendations.push(
+          ...processedRecommendations,
+          ...pendingRecommendations.slice(10)
+        );
         
         setRecommendations(allRecommendations);
         setError(null);

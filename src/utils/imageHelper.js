@@ -184,6 +184,60 @@ export const getTrackImage = (track, fallback = 'https://via.placeholder.com/300
  * @param {string} fallback - Fallback URL if no MBID is available
  * @returns {string} - URL of the artist image
  */
+/**
+ * Extract Wikimedia image URL from MusicBrainz artist relations
+ * 
+ * @param {object} mbArtist - MusicBrainz artist object
+ * @returns {string|null} - Wikimedia image URL or null if not found
+ */
+export const extractWikimediaImage = (mbArtist) => {
+  if (!mbArtist || !mbArtist.relations || !Array.isArray(mbArtist.relations)) {
+    return null;
+  }
+  
+  // Look for relation with type "image"
+  const imageRelation = mbArtist.relations.find(rel => 
+    rel.type === 'image' || 
+    rel['type-id'] === '221132e9-e30e-43f2-a741-15afc4c5fa7c'
+  );
+  
+  if (imageRelation && imageRelation.url && imageRelation.url.resource) {
+    // Found a Wikimedia Commons URL
+    const wikimediaUrl = imageRelation.url.resource;
+    
+    // Convert Wikimedia Commons URL to a direct image URL if possible
+    if (wikimediaUrl.includes('commons.wikimedia.org/wiki/File:')) {
+      const fileName = wikimediaUrl.split('File:').pop();
+      if (fileName) {
+        return `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(fileName)}?width=500`;
+      }
+    }
+    
+    return wikimediaUrl;
+  }
+  
+  // Try alternative relation formats
+  const imageRel = mbArtist.relations.find(rel => {
+    return rel.type === 'image' && rel.target && typeof rel.target === 'string';
+  });
+  
+  if (imageRel && imageRel.target) {
+    const targetUrl = imageRel.target;
+    
+    // Extract filename from URL
+    if (targetUrl.includes('File:')) {
+      const fileName = targetUrl.split('File:').pop();
+      if (fileName) {
+        return `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(fileName)}?width=500`;
+      }
+    }
+    
+    return targetUrl;
+  }
+  
+  return null;
+};
+
 export const getArtistImage = (artist, fallback = 'https://via.placeholder.com/300?text=Artist') => {
   if (!artist) return fallback;
   
@@ -199,10 +253,18 @@ export const getArtistImage = (artist, fallback = 'https://via.placeholder.com/3
     }
   }
   
-  // 2. Use a custom Spotify-style artist avatar with initials on a colored background
+  // 2. If the artist has an MBID and a wikimedia image, use it
+  if (artist.mbArtistInfo && typeof artist.mbArtistInfo === 'object') {
+    const wikimediaImage = extractWikimediaImage(artist.mbArtistInfo);
+    if (wikimediaImage) {
+      return wikimediaImage;
+    }
+  }
+  
+  // 3. Use a custom Spotify-style artist avatar with initials on a colored background
   let avatarUrl = fallback;
   if (artist.name) {
-    // 2a. Get first letter or first letter of each word for initials
+    // 3a. Get first letter or first letter of each word for initials
     const words = artist.name.split(' ');
     let initials = '';
     
@@ -220,7 +282,7 @@ export const getArtistImage = (artist, fallback = 'https://via.placeholder.com/3
     // Limit to max 2 letters
     initials = initials.substring(0, 2);
     
-    // 2b. Create a consistent color based on the artist name
+    // 3b. Create a consistent color based on the artist name
     const nameColorCode = artist.name.charCodeAt(0) % 360; // Use first char for hue
     
     // Convert HSL to hex for Avatar URL
@@ -258,15 +320,15 @@ export const getArtistImage = (artist, fallback = 'https://via.placeholder.com/3
     const bgColor = `${toHex(r)}${toHex(g)}${toHex(b)}`;
     const textColor = 'ffffff'; // White text
     
-    // 2c. Create the personalized avatar URL using initials and color
+    // 3c. Create the personalized avatar URL using initials and color
     avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(initials)}&background=${bgColor}&color=${textColor}&size=500&bold=true&rounded=true`;
   }
   
-  // 3. If artist has a custom defaultImage property, use it instead of the generated avatar
+  // 4. If artist has a custom defaultImage property, use it instead of the generated avatar
   if (artist.defaultImage && artist.defaultImage.trim() !== '') {
     return artist.defaultImage;
   }
   
-  // 4. Return the avatar URL
+  // 5. Return the avatar URL
   return avatarUrl;
 };

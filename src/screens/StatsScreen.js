@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { View, ScrollView, StyleSheet, Image } from 'react-native';
 import { Text, Card, Title, Paragraph, ActivityIndicator, List, Avatar } from 'react-native-paper';
-import { getUserTopArtists, getUserTopTracks, getArtistInfo } from '../api/lastfm';
+import { getUserTopArtists, getUserTopTracks, getArtistInfo, getMusicBrainzArtistInfo } from '../api/lastfm';
 import { getUsername } from '../utils/storage';
-import { getBestImage, getImageBySize, getArtistImage, getTrackImage } from '../utils/imageHelper';
+import { getBestImage, getImageBySize, getArtistImage, getTrackImage, extractWikimediaImage } from '../utils/imageHelper';
 
 const StatsScreen = () => {
   const [topArtists, setTopArtists] = useState([]);
@@ -37,7 +37,34 @@ const StatsScreen = () => {
         ]);
         
         if (artistsData && artistsData.topartists && artistsData.topartists.artist) {
-          setTopArtists(artistsData.topartists.artist);
+          // Get artist data with MusicBrainz info for the top 5 artists (for performance)
+          const topArtistsWithImages = await Promise.all(
+            artistsData.topartists.artist.slice(0, 5).map(async (artist) => {
+              try {
+                // Only fetch if artist has an mbid
+                if (artist.mbid) {
+                  const mbInfo = await getMusicBrainzArtistInfo(artist.mbid);
+                  if (mbInfo) {
+                    return {
+                      ...artist,
+                      mbArtistInfo: mbInfo
+                    };
+                  }
+                }
+              } catch (error) {
+                console.error('Error fetching MB artist info:', error);
+              }
+              return artist;
+            })
+          );
+          
+          // Combine the artists with MB info with the rest of the artists
+          const allArtists = [
+            ...topArtistsWithImages,
+            ...artistsData.topartists.artist.slice(5)
+          ];
+          
+          setTopArtists(allArtists);
         }
         
         if (tracksData && tracksData.toptracks && tracksData.toptracks.track) {

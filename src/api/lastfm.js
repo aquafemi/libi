@@ -48,9 +48,34 @@ export const getArtistInfo = async (artist) => {
   }
 };
 
-// Get artist info from MusicBrainz API
-export const getMusicBrainzArtistInfo = async (artistName) => {
+// Get artist info from MusicBrainz API with image relations
+export const getMusicBrainzArtistInfo = async (mbid) => {
   try {
+    if (!mbid) return null;
+    
+    // Use the MusicBrainz API to get an artist by MBID with image relations
+    const response = await axios.get(`https://musicbrainz.org/ws/2/artist/${mbid}`, {
+      params: {
+        inc: 'url-rels', // Include URL relations which has image information
+        fmt: 'json',
+      },
+      headers: {
+        'User-Agent': 'Libi-App/1.0.0 (https://github.com/aquafemi/libi)',
+      },
+    });
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching MusicBrainz artist info:', error);
+    return null;
+  }
+};
+
+// Search for artist in MusicBrainz API by name
+export const searchMusicBrainzArtist = async (artistName) => {
+  try {
+    if (!artistName) return null;
+    
     // Use the MusicBrainz API to search for an artist by name
     const response = await axios.get('https://musicbrainz.org/ws/2/artist', {
       params: {
@@ -64,7 +89,7 @@ export const getMusicBrainzArtistInfo = async (artistName) => {
     
     return response.data;
   } catch (error) {
-    console.error('Error fetching MusicBrainz artist info:', error);
+    console.error('Error searching MusicBrainz artist:', error);
     return null;
   }
 };
