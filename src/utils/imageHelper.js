@@ -241,7 +241,15 @@ export const extractWikimediaImage = (mbArtist) => {
 export const getArtistImage = (artist, fallback = 'https://via.placeholder.com/300?text=Artist') => {
   if (!artist) return fallback;
   
-  // 1. If the artist has images already from Last.fm API, try to use them first
+  // 1. If the artist has an MBID and a wikimedia image, try to use it first
+  if (artist.mbArtistInfo && typeof artist.mbArtistInfo === 'object') {
+    const wikimediaImage = extractWikimediaImage(artist.mbArtistInfo);
+    if (wikimediaImage) {
+      return wikimediaImage;
+    }
+  }
+  
+  // 2. If the artist has images already from Last.fm API, use them as second option
   if (artist.image && Array.isArray(artist.image) && artist.image.length > 0) {
     const bestImage = getBestImage(artist.image, '');
     // Check that the image URL isn't empty and doesn't contain the default Last.fm placeholder
@@ -250,14 +258,6 @@ export const getArtistImage = (artist, fallback = 'https://via.placeholder.com/3
         !bestImage.includes('2a96cbd8b46e442fc41c2b86b821562f') &&
         !bestImage.includes('c6f59c1e5e7240a4c0d427abd71f3dbb')) {
       return bestImage;
-    }
-  }
-  
-  // 2. If the artist has an MBID and a wikimedia image, use it
-  if (artist.mbArtistInfo && typeof artist.mbArtistInfo === 'object') {
-    const wikimediaImage = extractWikimediaImage(artist.mbArtistInfo);
-    if (wikimediaImage) {
-      return wikimediaImage;
     }
   }
   
