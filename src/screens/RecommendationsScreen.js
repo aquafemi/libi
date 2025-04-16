@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { View, FlatList, StyleSheet, Linking } from 'react-native';
 import { Text, Card, Title, Paragraph, Button, ActivityIndicator } from 'react-native-paper';
-import { getUserTopArtists, getSimilarArtists } from '../api/lastfm';
+import { getUserTopArtists, getSimilarArtists, getArtistInfo } from '../api/lastfm';
 import { getUsername } from '../utils/storage';
-import { getBestImage, getImageBySize } from '../utils/imageHelper';
+import { getBestImage, getImageBySize, getArtistImage } from '../utils/imageHelper';
 
 const RecommendationsScreen = () => {
   const [recommendations, setRecommendations] = useState([]);
@@ -47,23 +47,48 @@ const RecommendationsScreen = () => {
         const allRecommendations = [];
         const seenArtists = new Set(topArtistsData.topartists.artist.map(a => a.name.toLowerCase()));
         
-        similarArtistsResults.forEach(result => {
+        // Process similar artists
+        for (const result of similarArtistsResults) {
           if (result?.similarartists?.artist) {
-            result.similarartists.artist.forEach(artist => {
+            for (const artist of result.similarartists.artist) {
               if (!seenArtists.has(artist.name.toLowerCase())) {
                 seenArtists.add(artist.name.toLowerCase());
-                allRecommendations.push({
-                  ...artist,
-                  // Add a placeholder for purchase links (in a real app, you might integrate with a music store API)
-                  purchaseLinks: [
-                    { name: 'Bandcamp', url: `https://bandcamp.com/search?q=${encodeURIComponent(artist.name)}` },
-                    { name: 'iTunes', url: `https://music.apple.com/search?term=${encodeURIComponent(artist.name)}` },
-                  ]
-                });
+                
+                // Check if the artist has images, if not attempt to fetch artist info
+                if (!artist.image || !Array.isArray(artist.image) || !artist.image.length || !artist.image[0]['#text'] || artist.image[0]['#text'].trim() === '') {
+                  try {
+                    // Use a custom fallback URL based on artist name
+                    const fallbackImage = `https://via.placeholder.com/300?text=${encodeURIComponent(artist.name)}`;
+                    
+                    // We'll still add the artist with a fallback image for now
+                    allRecommendations.push({
+                      ...artist,
+                      // Add a placeholder for purchase links
+                      purchaseLinks: [
+                        { name: 'Bandcamp', url: `https://bandcamp.com/search?q=${encodeURIComponent(artist.name)}` },
+                        { name: 'iTunes', url: `https://music.apple.com/search?term=${encodeURIComponent(artist.name)}` },
+                      ],
+                      // Add a better default image
+                      defaultImage: fallbackImage
+                    });
+                  } catch (err) {
+                    console.error(`Error fetching info for artist ${artist.name}:`, err);
+                  }
+                } else {
+                  // Artist already has images, just add to recommendations
+                  allRecommendations.push({
+                    ...artist,
+                    // Add a placeholder for purchase links
+                    purchaseLinks: [
+                      { name: 'Bandcamp', url: `https://bandcamp.com/search?q=${encodeURIComponent(artist.name)}` },
+                      { name: 'iTunes', url: `https://music.apple.com/search?term=${encodeURIComponent(artist.name)}` },
+                    ]
+                  });
+                }
               }
-            });
+            }
           }
-        });
+        }
         
         setRecommendations(allRecommendations);
         setError(null);
@@ -91,7 +116,7 @@ const RecommendationsScreen = () => {
   const renderArtistItem = ({ item }) => (
     <Card style={styles.card}>
       <Card.Cover 
-        source={{ uri: getBestImage(item.image) }} 
+        source={{ uri: getArtistImage(item) }} 
         style={styles.artistImage}
         resizeMode="cover"
       />

@@ -31,6 +31,22 @@ export const getUserRecentTracks = async (username, limit = 50) => {
   }
 };
 
+// Get artist info including images
+export const getArtistInfo = async (artist) => {
+  try {
+    const response = await lastfm.get('', {
+      params: {
+        method: 'artist.getinfo',
+        artist,
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching artist info:', error);
+    throw error;
+  }
+};
+
 // Get user top artists
 export const getUserTopArtists = async (username, period = 'overall', limit = 20) => {
   try {
@@ -92,6 +108,7 @@ export const getSimilarArtists = async (artist, limit = 10) => {
         method: 'artist.getsimilar',
         artist,
         limit,
+        autocorrect: 1,
       },
     });
     return response.data;

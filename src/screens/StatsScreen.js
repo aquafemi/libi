@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { View, ScrollView, StyleSheet, Image } from 'react-native';
 import { Text, Card, Title, Paragraph, ActivityIndicator, List, Avatar } from 'react-native-paper';
-import { getUserTopArtists, getUserTopTracks } from '../api/lastfm';
+import { getUserTopArtists, getUserTopTracks, getArtistInfo } from '../api/lastfm';
 import { getUsername } from '../utils/storage';
-import { getBestImage, getImageBySize } from '../utils/imageHelper';
+import { getBestImage, getImageBySize, getArtistImage } from '../utils/imageHelper';
 
 const StatsScreen = () => {
   const [topArtists, setTopArtists] = useState([]);
@@ -91,7 +91,7 @@ const StatsScreen = () => {
         {topArtists.slice(0, 5).map((artist, index) => (
           <Card key={`artist-card-${artist.mbid || index}`} style={styles.artistCard}>
             <Card.Cover 
-              source={{ uri: getBestImage(artist.image) }}
+              source={{ uri: getArtistImage(artist) }}
               style={styles.artistCardImage}
               resizeMode="cover"
             />
@@ -116,7 +116,7 @@ const StatsScreen = () => {
             <Avatar.Image 
               {...props} 
               size={50} 
-              source={{ uri: getImageBySize(artist.image, 'large') }} 
+              source={{ uri: getArtistImage(artist) }} 
             />
           }
           right={props => <Text style={styles.rank}>#{index + 6}</Text>}
