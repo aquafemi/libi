@@ -1,11 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet } from 'react-native';
-import { Text, TextInput, Button, Surface } from 'react-native-paper';
+import { View, StyleSheet, Text } from 'react-native';
+import { TextInput, Button, Surface, Switch, useTheme as usePaperTheme } from 'react-native-paper';
 import { saveUsername, getUsername } from '../utils/storage';
+import { useTheme } from '../utils/themeContext';
+import ThemeAwareScreen from '../components/ThemeAwareScreen';
 
 const ProfileScreen = () => {
   const [username, setUsername] = useState('');
   const [savedUsername, setSavedUsername] = useState('');
+  
+  // Get theme context and paper theme
+  const { isDarkMode, toggleTheme } = useTheme();
+  const paperTheme = usePaperTheme();
   
   useEffect(() => {
     // Load saved username when component mounts
@@ -29,12 +35,14 @@ const ProfileScreen = () => {
     }
   };
   
+  const { theme } = useTheme();
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.header}>Your Profile</Text>
+    <ThemeAwareScreen style={styles.container}>
+      <Text style={[styles.header, { color: theme.colors.text }]}>Your Profile</Text>
       
-      <Surface style={styles.surface}>
-        <Text style={styles.label}>Last.fm Username</Text>
+      <Surface style={[styles.surface, { backgroundColor: theme.colors.surface }]}>
+        <Text style={[styles.label, { color: theme.colors.text }]}>Last.fm Username</Text>
         <TextInput
           style={styles.input}
           value={username}
@@ -46,31 +54,50 @@ const ProfileScreen = () => {
           mode="contained" 
           onPress={handleSaveUsername}
           style={styles.button}
+          color={theme.colors.primary}
         >
           Save
         </Button>
         
         {savedUsername ? (
-          <Text style={styles.savedMessage}>
+          <Text style={[styles.savedMessage, { color: theme.colors.text }]}>
             Tracking stats for: {savedUsername}
           </Text>
         ) : null}
       </Surface>
       
-      <Surface style={styles.surface}>
-        <Text style={styles.sectionTitle}>About this App</Text>
-        <Text style={styles.aboutText}>
+      {/* Dark Mode Toggle */}
+      <Surface style={[styles.surface, { backgroundColor: theme.colors.surface }]}>
+        <View style={styles.toggleContainer}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+            App Theme
+          </Text>
+          <View style={styles.toggleRow}>
+            <Text style={[styles.toggleText, { color: theme.colors.text }]}>
+              {isDarkMode ? 'Dark Mode' : 'Light Mode'}
+            </Text>
+            <Switch
+              value={isDarkMode}
+              onValueChange={toggleTheme}
+              color={theme.colors.primary}
+            />
+          </View>
+        </View>
+      </Surface>
+      
+      <Surface style={[styles.surface, { backgroundColor: theme.colors.surface }]}>
+        <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>About this App</Text>
+        <Text style={[styles.aboutText, { color: theme.colors.text }]}>
           Libi helps you track your music listening habits and recommends music you might want to buy based on your Last.fm history.
         </Text>
       </Surface>
-    </View>
+    </ThemeAwareScreen>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
     padding: 16,
   },
   header: {
@@ -106,6 +133,19 @@ const styles = StyleSheet.create({
   aboutText: {
     fontSize: 16,
     lineHeight: 24,
+  },
+  // Theme toggle styles
+  toggleContainer: {
+    flexDirection: 'column',
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  toggleText: {
+    fontSize: 16,
   },
 });
 

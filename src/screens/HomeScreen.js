@@ -1,15 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { View, FlatList, StyleSheet, Image } from 'react-native';
-import { Text, Card, Title, Paragraph, ActivityIndicator, Avatar } from 'react-native-paper';
+import { Card, Title, Paragraph, ActivityIndicator, Avatar, useTheme as usePaperTheme } from 'react-native-paper';
 import { getUserRecentTracks } from '../api/lastfm';
 import { getUsername } from '../utils/storage';
 import { getBestImage, getImageBySize, getTrackImage } from '../utils/imageHelper';
+import { useTheme } from '../utils/themeContext';
+import ThemeAwareScreen from '../components/ThemeAwareScreen';
+import ThemedText from '../components/ThemedText';
 
 const HomeScreen = () => {
   const [recentTracks, setRecentTracks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [username, setUsername] = useState('');
+  
+  // Get the current theme
+  const { theme } = useTheme();
+  const paperTheme = usePaperTheme();
 
   useEffect(() => {
     // Load saved username when component mounts
@@ -46,21 +53,39 @@ const HomeScreen = () => {
   }, [username]);
 
   const renderTrackItem = ({ item }) => (
-    <Card style={styles.card}>
+    <Card 
+      style={[styles.card, { backgroundColor: theme.colors.surface }]}
+      mode="elevated"
+    >
       <Card.Cover 
         source={{ uri: getTrackImage(item) }} 
         style={styles.albumArt}
         resizeMode="cover"
       />
       <Card.Content style={styles.cardContent}>
-        <Title numberOfLines={1} style={styles.trackTitle}>{item.name}</Title>
+        <Title 
+          numberOfLines={1} 
+          style={[styles.trackTitle, { color: theme.colors.text }]}
+        >
+          {item.name}
+        </Title>
         <View style={styles.artistAlbumContainer}>
-          <Paragraph numberOfLines={1} style={styles.artistName}>{item.artist['#text']}</Paragraph>
-          <Paragraph numberOfLines={1} style={styles.albumName}>{item.album['#text']}</Paragraph>
+          <Paragraph 
+            numberOfLines={1} 
+            style={[styles.artistName, { color: theme.colors.text }]}
+          >
+            {item.artist['#text']}
+          </Paragraph>
+          <Paragraph 
+            numberOfLines={1} 
+            style={[styles.albumName, { color: theme.colors.text, opacity: 0.7 }]}
+          >
+            {item.album['#text']}
+          </Paragraph>
         </View>
         {item['@attr']?.nowplaying === 'true' && (
-          <View style={styles.nowPlayingBadge}>
-            <Text style={styles.nowPlayingText}>NOW PLAYING</Text>
+          <View style={[styles.nowPlayingBadge, { backgroundColor: theme.colors.primary }]}>
+            <ThemedText style={styles.nowPlayingText}>NOW PLAYING</ThemedText>
           </View>
         )}
       </Card.Content>
@@ -69,46 +94,48 @@ const HomeScreen = () => {
 
   if (loading && !recentTracks.length) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" />
-      </View>
+      <ThemeAwareScreen>
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
+      </ThemeAwareScreen>
     );
   }
 
   if (error && !recentTracks.length) {
     return (
-      <View style={styles.centered}>
-        <Text>{error}</Text>
-      </View>
+      <ThemeAwareScreen>
+        <View style={styles.centered}>
+          <ThemedText>{error}</ThemedText>
+        </View>
+      </ThemeAwareScreen>
     );
   }
 
   if (!username) {
     return (
-      <View style={styles.centered}>
-        <Text>Please set your Last.fm username in the Profile tab.</Text>
-      </View>
+      <ThemeAwareScreen>
+        <View style={styles.centered}>
+          <ThemedText>Please set your Last.fm username in the Profile tab.</ThemedText>
+        </View>
+      </ThemeAwareScreen>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.header}>Recent Tracks</Text>
+    <ThemeAwareScreen>
+      <ThemedText style={styles.header}>Recent Tracks</ThemedText>
       <FlatList
         data={recentTracks}
         renderItem={renderTrackItem}
         keyExtractor={(item, index) => `${item.mbid || item.name}-${index}`}
         contentContainerStyle={styles.list}
       />
-    </View>
+    </ThemeAwareScreen>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
   centered: {
     flex: 1,
     justifyContent: 'center',
@@ -146,18 +173,15 @@ const styles = StyleSheet.create({
   },
   artistName: {
     fontSize: 16,
-    opacity: 0.8,
   },
   albumName: {
     fontSize: 14,
-    opacity: 0.6,
     marginTop: 2,
   },
   nowPlayingBadge: {
     position: 'absolute',
     top: 10,
     right: 10,
-    backgroundColor: '#6200ee',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 4,

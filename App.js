@@ -1,21 +1,33 @@
 import React from 'react';
-import { Provider as PaperProvider, DefaultTheme } from 'react-native-paper';
+import { Provider as PaperProvider, MD3LightTheme, MD3DarkTheme } from 'react-native-paper';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AppNavigator from './src/navigation/AppNavigator';
+import { ThemeProvider, useTheme } from './src/utils/themeContext';
 
-// Define theme
-const theme = {
-  ...DefaultTheme,
-  colors: {
-    ...DefaultTheme.colors,
-    primary: '#6200ee',
-    accent: '#03dac4',
-  },
+// Main App component that uses the theme context
+const Main = () => {
+  // Get the current theme from context
+  const { theme, isDarkMode } = useTheme();
+  
+  // Use the appropriate Paper theme based on dark mode state
+  const paperTheme = isDarkMode ? 
+    { ...MD3DarkTheme, colors: { ...MD3DarkTheme.colors, primary: theme.colors.primary } } : 
+    { ...MD3LightTheme, colors: { ...MD3LightTheme.colors, primary: theme.colors.primary } };
+  
+  return (
+    <PaperProvider theme={paperTheme}>
+      <SafeAreaProvider>
+        <AppNavigator />
+      </SafeAreaProvider>
+    </PaperProvider>
+  );
 };
 
+// Root component that wraps everything with the ThemeProvider
 export default function App() {
   return (
-    <PaperProvider theme={theme}>
-      <AppNavigator />
-    </PaperProvider>
+    <ThemeProvider>
+      <Main />
+    </ThemeProvider>
   );
 }

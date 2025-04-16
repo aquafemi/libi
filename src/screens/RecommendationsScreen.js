@@ -1,15 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { View, FlatList, StyleSheet, Linking } from 'react-native';
-import { Text, Card, Title, Paragraph, Button, ActivityIndicator } from 'react-native-paper';
-import { getUserTopArtists, getSimilarArtists, getArtistInfo, getMusicBrainzArtistInfo } from '../api/lastfm';
+import { View, FlatList, StyleSheet, Linking, Text } from 'react-native';
+import { Card, Title, Paragraph, Button, ActivityIndicator, useTheme as usePaperTheme } from 'react-native-paper';
+import { getUserTopArtists, getSimilarArtists, getMusicBrainzArtistInfo } from '../api/lastfm';
 import { getUsername } from '../utils/storage';
-import { getBestImage, getImageBySize, getArtistImage, extractWikimediaImage } from '../utils/imageHelper';
+import { getArtistImage } from '../utils/imageHelper';
+import { useTheme } from '../utils/themeContext';
+import ThemeAwareScreen from '../components/ThemeAwareScreen';
+import ThemedText from '../components/ThemedText';
 
 const RecommendationsScreen = () => {
   const [recommendations, setRecommendations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [username, setUsername] = useState('');
+  const { theme } = useTheme();
+  const paperTheme = usePaperTheme();
 
   useEffect(() => {
     // Load saved username when component mounts
@@ -128,18 +133,18 @@ const RecommendationsScreen = () => {
   };
 
   const renderArtistItem = ({ item }) => (
-    <Card style={styles.card}>
+    <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
       <Card.Cover 
         source={{ uri: getArtistImage(item) }} 
         style={styles.artistImage}
         resizeMode="cover"
       />
-      <View style={styles.matchBadge}>
+      <View style={[styles.matchBadge, { backgroundColor: theme.colors.primary + 'D9' }]}>
         <Text style={styles.matchText}>{Math.round(parseFloat(item.match) * 100)}% match</Text>
       </View>
       <Card.Content style={styles.cardContent}>
-        <Title style={styles.artistTitle} numberOfLines={1}>{item.name}</Title>
-        <Paragraph style={styles.artistGenre} numberOfLines={1}>{item.genre || 'Similar to your top artists'}</Paragraph>
+        <Title style={[styles.artistTitle, { color: theme.colors.text }]} numberOfLines={1}>{item.name}</Title>
+        <Paragraph style={[styles.artistGenre, { color: theme.colors.text + 'B3' }]} numberOfLines={1}>{item.genre || 'Similar to your top artists'}</Paragraph>
       </Card.Content>
       <Card.Actions style={styles.cardActions}>
         {item.purchaseLinks?.map(link => (
@@ -148,6 +153,7 @@ const RecommendationsScreen = () => {
             mode="contained" 
             onPress={() => openUrl(link.url)}
             style={styles.purchaseButton}
+            color={theme.colors.primary}
             labelStyle={styles.buttonLabel}
             compact
           >
@@ -160,32 +166,32 @@ const RecommendationsScreen = () => {
 
   if (loading && !recommendations.length) {
     return (
-      <View style={styles.centered}>
+      <ThemeAwareScreen style={styles.centered}>
         <ActivityIndicator size="large" />
-      </View>
+      </ThemeAwareScreen>
     );
   }
 
   if (error && !recommendations.length) {
     return (
-      <View style={styles.centered}>
-        <Text>{error}</Text>
-      </View>
+      <ThemeAwareScreen style={styles.centered}>
+        <Text style={{ color: theme.colors.text }}>{error}</Text>
+      </ThemeAwareScreen>
     );
   }
 
   if (!username) {
     return (
-      <View style={styles.centered}>
-        <Text>Please set your Last.fm username in the Profile tab.</Text>
-      </View>
+      <ThemeAwareScreen style={styles.centered}>
+        <Text style={{ color: theme.colors.text }}>Please set your Last.fm username in the Profile tab.</Text>
+      </ThemeAwareScreen>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.header}>Recommended Artists to Buy</Text>
-      <Text style={styles.subheader}>Based on your listening history</Text>
+    <ThemeAwareScreen style={styles.container}>
+      <Text style={[styles.header, { color: theme.colors.text }]}>Recommended Artists to Buy</Text>
+      <Text style={[styles.subheader, { color: theme.colors.text }]}>Based on your listening history</Text>
       
       {/* Display a grid of two columns */}
       <FlatList
@@ -197,14 +203,13 @@ const RecommendationsScreen = () => {
         columnWrapperStyle={styles.columnWrapper}
         showsVerticalScrollIndicator={false}
       />
-    </View>
+    </ThemeAwareScreen>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
   },
   centered: {
     flex: 1,
@@ -274,7 +279,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 8,
     right: 8,
-    backgroundColor: 'rgba(98, 0, 238, 0.85)',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 20,

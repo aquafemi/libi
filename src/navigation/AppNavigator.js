@@ -3,6 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useTheme } from '../utils/themeContext';
 
 // Import screens
 import HomeScreen from '../screens/HomeScreen';
@@ -39,8 +40,14 @@ const ProfileStack = () => (
 );
 
 const AppNavigator = () => {
+  // Get theme from context
+  const { theme, isDarkMode } = useTheme();
+  
+  // Use the already combined theme
+  const navigationTheme = theme;
+  
   return (
-    <NavigationContainer>
+    <NavigationContainer theme={navigationTheme}>
       <Tab.Navigator
         screenOptions={({ route }) => ({
           tabBarIcon: ({ focused, color, size }) => {
@@ -58,8 +65,11 @@ const AppNavigator = () => {
 
             return <MaterialCommunityIcons name={iconName} size={size} color={color} />;
           },
-          tabBarActiveTintColor: '#6200ee',
+          tabBarActiveTintColor: theme.colors.primary,
           tabBarInactiveTintColor: 'gray',
+          tabBarStyle: {
+            backgroundColor: theme.colors.surface,
+          },
         })}
       >
         <Tab.Screen 
