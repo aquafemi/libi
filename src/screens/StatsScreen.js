@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, StyleSheet } from 'react-native';
-import { Text, Card, Title, Paragraph, ActivityIndicator, List } from 'react-native-paper';
+import { View, ScrollView, StyleSheet, Image } from 'react-native';
+import { Text, Card, Title, Paragraph, ActivityIndicator, List, Avatar } from 'react-native-paper';
 import { getUserTopArtists, getUserTopTracks } from '../api/lastfm';
 import { getUsername } from '../utils/storage';
+import { getBestImage, getImageBySize } from '../utils/imageHelper';
 
 const StatsScreen = () => {
   const [topArtists, setTopArtists] = useState([]);
@@ -89,8 +90,15 @@ const StatsScreen = () => {
           key={`artist-${artist.mbid || index}`}
           title={artist.name}
           description={`Playcount: ${artist.playcount}`}
-          left={props => <List.Icon {...props} icon="account-music" />}
+          left={props => 
+            <Avatar.Image 
+              {...props} 
+              size={50} 
+              source={{ uri: getImageBySize(artist.image, 'large') }} 
+            />
+          }
           right={props => <Text style={styles.rank}>#{index + 1}</Text>}
+          style={styles.listItem}
         />
       ))}
       
@@ -100,8 +108,15 @@ const StatsScreen = () => {
           key={`track-${track.mbid || index}`}
           title={track.name}
           description={track.artist.name}
-          left={props => <List.Icon {...props} icon="music-note" />}
+          left={props => 
+            <Avatar.Image 
+              {...props} 
+              size={50} 
+              source={{ uri: getImageBySize(track.image, 'large') }} 
+            />
+          }
           right={props => <Text style={styles.rank}>#{index + 1}</Text>}
+          style={styles.listItem}
         />
       ))}
     </ScrollView>
@@ -134,6 +149,13 @@ const styles = StyleSheet.create({
   rank: {
     fontSize: 16,
     opacity: 0.7,
+  },
+  listItem: {
+    marginVertical: 4,
+    marginHorizontal: 8,
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    elevation: 2,
   },
 });
 

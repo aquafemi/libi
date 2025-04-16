@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, FlatList, StyleSheet } from 'react-native';
-import { Text, Card, Title, Paragraph, ActivityIndicator } from 'react-native-paper';
+import { View, FlatList, StyleSheet, Image } from 'react-native';
+import { Text, Card, Title, Paragraph, ActivityIndicator, Avatar } from 'react-native-paper';
 import { getUserRecentTracks } from '../api/lastfm';
 import { getUsername } from '../utils/storage';
+import { getBestImage, getImageBySize } from '../utils/imageHelper';
 
 const HomeScreen = () => {
   const [recentTracks, setRecentTracks] = useState([]);
@@ -47,13 +48,21 @@ const HomeScreen = () => {
   const renderTrackItem = ({ item }) => (
     <Card style={styles.card}>
       <Card.Cover 
-        source={{ uri: item.image[3]['#text'] || 'https://via.placeholder.com/300' }} 
+        source={{ uri: getBestImage(item.image) }} 
         style={styles.albumArt}
+        resizeMode="cover"
       />
-      <Card.Content>
-        <Title numberOfLines={1}>{item.name}</Title>
-        <Paragraph numberOfLines={1}>{item.artist['#text']}</Paragraph>
-        <Paragraph numberOfLines={1}>{item.album['#text']}</Paragraph>
+      <Card.Content style={styles.cardContent}>
+        <Title numberOfLines={1} style={styles.trackTitle}>{item.name}</Title>
+        <View style={styles.artistAlbumContainer}>
+          <Paragraph numberOfLines={1} style={styles.artistName}>{item.artist['#text']}</Paragraph>
+          <Paragraph numberOfLines={1} style={styles.albumName}>{item.album['#text']}</Paragraph>
+        </View>
+        {item['@attr']?.nowplaying === 'true' && (
+          <View style={styles.nowPlayingBadge}>
+            <Text style={styles.nowPlayingText}>NOW PLAYING</Text>
+          </View>
+        )}
       </Card.Content>
     </Card>
   );
@@ -117,10 +126,46 @@ const styles = StyleSheet.create({
   card: {
     marginBottom: 16,
     marginHorizontal: 8,
-    elevation: 2,
+    elevation: 3,
+    borderRadius: 10,
+    overflow: 'hidden',
   },
   albumArt: {
-    height: 200,
+    height: 220,
+  },
+  cardContent: {
+    paddingVertical: 12,
+  },
+  trackTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  artistAlbumContainer: {
+    marginTop: 4,
+  },
+  artistName: {
+    fontSize: 16,
+    opacity: 0.8,
+  },
+  albumName: {
+    fontSize: 14,
+    opacity: 0.6,
+    marginTop: 2,
+  },
+  nowPlayingBadge: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: '#6200ee',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  nowPlayingText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
 });
 

@@ -3,6 +3,7 @@ import { View, FlatList, StyleSheet, Linking } from 'react-native';
 import { Text, Card, Title, Paragraph, Button, ActivityIndicator } from 'react-native-paper';
 import { getUserTopArtists, getSimilarArtists } from '../api/lastfm';
 import { getUsername } from '../utils/storage';
+import { getBestImage, getImageBySize } from '../utils/imageHelper';
 
 const RecommendationsScreen = () => {
   const [recommendations, setRecommendations] = useState([]);
@@ -90,19 +91,25 @@ const RecommendationsScreen = () => {
   const renderArtistItem = ({ item }) => (
     <Card style={styles.card}>
       <Card.Cover 
-        source={{ uri: item.image?.[3]?.['#text'] || 'https://via.placeholder.com/300' }} 
+        source={{ uri: getBestImage(item.image) }} 
         style={styles.artistImage}
+        resizeMode="cover"
       />
-      <Card.Content>
-        <Title>{item.name}</Title>
-        <Paragraph>Match score: {Math.round(parseFloat(item.match) * 100)}%</Paragraph>
+      <View style={styles.matchBadge}>
+        <Text style={styles.matchText}>{Math.round(parseFloat(item.match) * 100)}% match</Text>
+      </View>
+      <Card.Content style={styles.cardContent}>
+        <Title style={styles.artistTitle}>{item.name}</Title>
+        <Paragraph style={styles.artistGenre}>{item.genre || 'Similar to your top artists'}</Paragraph>
       </Card.Content>
-      <Card.Actions>
+      <Card.Actions style={styles.cardActions}>
         {item.purchaseLinks?.map(link => (
           <Button 
             key={link.name}
             mode="contained" 
             onPress={() => openUrl(link.url)}
+            style={styles.purchaseButton}
+            labelStyle={styles.buttonLabel}
           >
             Buy on {link.name}
           </Button>
@@ -179,10 +186,51 @@ const styles = StyleSheet.create({
   card: {
     marginBottom: 16,
     marginHorizontal: 8,
-    elevation: 2,
+    elevation: 3,
+    borderRadius: 10,
+    overflow: 'hidden',
+    position: 'relative',
   },
   artistImage: {
-    height: 200,
+    height: 220,
+  },
+  cardContent: {
+    paddingVertical: 12,
+  },
+  artistTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  artistGenre: {
+    marginTop: 4,
+    fontSize: 14,
+    opacity: 0.7,
+  },
+  cardActions: {
+    justifyContent: 'space-evenly',
+    paddingVertical: 8,
+  },
+  purchaseButton: {
+    marginHorizontal: 4,
+    flex: 1,
+    borderRadius: 20,
+  },
+  buttonLabel: {
+    fontSize: 12,
+  },
+  matchBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: 'rgba(98, 0, 238, 0.85)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+  },
+  matchText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 12,
   },
 });
 

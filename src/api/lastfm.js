@@ -1,7 +1,8 @@
 import axios from 'axios';
+import { LASTFM_API_KEY } from '@env';
 
 // Last.fm API configuration
-const API_KEY = ''; // You'll need to get an API key from Last.fm
+const API_KEY = LASTFM_API_KEY;
 const BASE_URL = 'https://ws.audioscrobbler.com/2.0/';
 
 // Create API client
