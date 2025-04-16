@@ -99,8 +99,8 @@ const RecommendationsScreen = () => {
         <Text style={styles.matchText}>{Math.round(parseFloat(item.match) * 100)}% match</Text>
       </View>
       <Card.Content style={styles.cardContent}>
-        <Title style={styles.artistTitle}>{item.name}</Title>
-        <Paragraph style={styles.artistGenre}>{item.genre || 'Similar to your top artists'}</Paragraph>
+        <Title style={styles.artistTitle} numberOfLines={1}>{item.name}</Title>
+        <Paragraph style={styles.artistGenre} numberOfLines={1}>{item.genre || 'Similar to your top artists'}</Paragraph>
       </Card.Content>
       <Card.Actions style={styles.cardActions}>
         {item.purchaseLinks?.map(link => (
@@ -110,8 +110,9 @@ const RecommendationsScreen = () => {
             onPress={() => openUrl(link.url)}
             style={styles.purchaseButton}
             labelStyle={styles.buttonLabel}
+            compact
           >
-            Buy on {link.name}
+            {link.name}
           </Button>
         ))}
       </Card.Actions>
@@ -146,11 +147,16 @@ const RecommendationsScreen = () => {
     <View style={styles.container}>
       <Text style={styles.header}>Recommended Artists to Buy</Text>
       <Text style={styles.subheader}>Based on your listening history</Text>
+      
+      {/* Display a grid of two columns */}
       <FlatList
         data={recommendations}
         renderItem={renderArtistItem}
         keyExtractor={(item, index) => `${item.mbid || item.name}-${index}`}
         contentContainerStyle={styles.list}
+        numColumns={2}
+        columnWrapperStyle={styles.columnWrapper}
+        showsVerticalScrollIndicator={false}
       />
     </View>
   );
@@ -183,54 +189,61 @@ const styles = StyleSheet.create({
   list: {
     padding: 8,
   },
+  columnWrapper: {
+    justifyContent: 'space-between',
+  },
   card: {
-    marginBottom: 16,
-    marginHorizontal: 8,
+    width: '48%',
+    marginBottom: 12,
     elevation: 3,
     borderRadius: 10,
     overflow: 'hidden',
     position: 'relative',
   },
   artistImage: {
-    height: 220,
+    height: 150,
   },
   cardContent: {
-    paddingVertical: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
   },
   artistTitle: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: 'bold',
   },
   artistGenre: {
-    marginTop: 4,
-    fontSize: 14,
+    marginTop: 2,
+    fontSize: 12,
     opacity: 0.7,
   },
   cardActions: {
     justifyContent: 'space-evenly',
-    paddingVertical: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
   },
   purchaseButton: {
-    marginHorizontal: 4,
-    flex: 1,
+    margin: 2,
     borderRadius: 20,
+    minWidth: 0,
   },
   buttonLabel: {
-    fontSize: 12,
+    fontSize: 10,
   },
   matchBadge: {
     position: 'absolute',
-    top: 12,
-    right: 12,
+    top: 8,
+    right: 8,
     backgroundColor: 'rgba(98, 0, 238, 0.85)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: 20,
   },
   matchText: {
     color: 'white',
     fontWeight: 'bold',
-    fontSize: 12,
+    fontSize: 11,
   },
 });
 

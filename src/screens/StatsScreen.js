@@ -85,7 +85,29 @@ const StatsScreen = () => {
       <Text style={styles.header}>Your Listening Stats</Text>
       
       <Text style={styles.subheader}>Top Artists</Text>
-      {topArtists.slice(0, 10).map((artist, index) => (
+      
+      {/* Top 5 artists as cards in horizontal scroll */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
+        {topArtists.slice(0, 5).map((artist, index) => (
+          <Card key={`artist-card-${artist.mbid || index}`} style={styles.artistCard}>
+            <Card.Cover 
+              source={{ uri: getBestImage(artist.image) }}
+              style={styles.artistCardImage}
+              resizeMode="cover"
+            />
+            <View style={styles.rankBadge}>
+              <Text style={styles.rankBadgeText}>#{index + 1}</Text>
+            </View>
+            <Card.Content style={styles.artistCardContent}>
+              <Title numberOfLines={1} style={styles.artistCardTitle}>{artist.name}</Title>
+              <Paragraph style={styles.artistCardPlays}>{artist.playcount} plays</Paragraph>
+            </Card.Content>
+          </Card>
+        ))}
+      </ScrollView>
+      
+      {/* Remaining top artists as list items */}
+      {topArtists.slice(5, 10).map((artist, index) => (
         <List.Item
           key={`artist-${artist.mbid || index}`}
           title={artist.name}
@@ -97,13 +119,36 @@ const StatsScreen = () => {
               source={{ uri: getImageBySize(artist.image, 'large') }} 
             />
           }
-          right={props => <Text style={styles.rank}>#{index + 1}</Text>}
+          right={props => <Text style={styles.rank}>#{index + 6}</Text>}
           style={styles.listItem}
         />
       ))}
       
       <Text style={styles.subheader}>Top Tracks</Text>
-      {topTracks.slice(0, 10).map((track, index) => (
+      
+      {/* Top 5 tracks as cards in horizontal scroll */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
+        {topTracks.slice(0, 5).map((track, index) => (
+          <Card key={`track-card-${track.mbid || index}`} style={styles.trackCard}>
+            <Card.Cover 
+              source={{ uri: getBestImage(track.image) }}
+              style={styles.trackCardImage}
+              resizeMode="cover"
+            />
+            <View style={styles.rankBadge}>
+              <Text style={styles.rankBadgeText}>#{index + 1}</Text>
+            </View>
+            <Card.Content style={styles.trackCardContent}>
+              <Title numberOfLines={1} style={styles.trackCardTitle}>{track.name}</Title>
+              <Paragraph numberOfLines={1} style={styles.trackCardArtist}>{track.artist.name}</Paragraph>
+              <Paragraph style={styles.trackCardPlays}>{track.playcount} plays</Paragraph>
+            </Card.Content>
+          </Card>
+        ))}
+      </ScrollView>
+      
+      {/* Remaining top tracks as list items */}
+      {topTracks.slice(5, 10).map((track, index) => (
         <List.Item
           key={`track-${track.mbid || index}`}
           title={track.name}
@@ -115,7 +160,7 @@ const StatsScreen = () => {
               source={{ uri: getImageBySize(track.image, 'large') }} 
             />
           }
-          right={props => <Text style={styles.rank}>#{index + 1}</Text>}
+          right={props => <Text style={styles.rank}>#{index + 6}</Text>}
           style={styles.listItem}
         />
       ))}
@@ -152,10 +197,84 @@ const styles = StyleSheet.create({
   },
   listItem: {
     marginVertical: 4,
-    marginHorizontal: 8,
+    marginHorizontal: 16,
     borderRadius: 8,
     backgroundColor: '#fff',
     elevation: 2,
+  },
+  horizontalScroll: {
+    paddingVertical: 8,
+    paddingLeft: 16,
+  },
+  // Artist card styles
+  artistCard: {
+    width: 160,
+    marginRight: 16,
+    borderRadius: 8,
+    overflow: 'hidden',
+    elevation: 3,
+    position: 'relative',
+  },
+  artistCardImage: {
+    height: 160,
+  },
+  artistCardContent: {
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+  },
+  artistCardTitle: {
+    fontSize: 14,
+    marginBottom: 2,
+  },
+  artistCardPlays: {
+    fontSize: 12,
+    opacity: 0.7,
+  },
+  // Track card styles
+  trackCard: {
+    width: 160,
+    marginRight: 16,
+    borderRadius: 8,
+    overflow: 'hidden',
+    elevation: 3,
+    position: 'relative',
+  },
+  trackCardImage: {
+    height: 160,
+  },
+  trackCardContent: {
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+  },
+  trackCardTitle: {
+    fontSize: 14,
+    marginBottom: 2,
+  },
+  trackCardArtist: {
+    fontSize: 12,
+    marginBottom: 2,
+    opacity: 0.8,
+  },
+  trackCardPlays: {
+    fontSize: 12,
+    opacity: 0.6,
+  },
+  // Rank badge
+  rankBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(98, 0, 238, 0.85)',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  rankBadgeText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 12,
   },
 });
 
