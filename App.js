@@ -1,4 +1,5 @@
 import React from 'react';
+import { StatusBar } from 'react-native';
 import { Provider as PaperProvider, MD3LightTheme, MD3DarkTheme } from 'react-native-paper';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AppNavigator from './src/navigation/AppNavigator';
@@ -17,6 +18,11 @@ const Main = () => {
   return (
     <PaperProvider theme={paperTheme}>
       <SafeAreaProvider>
+        <StatusBar
+          barStyle={isDarkMode ? "light-content" : "dark-content"}
+          backgroundColor="transparent"
+          translucent={true}
+        />
         <AppNavigator />
       </SafeAreaProvider>
     </PaperProvider>

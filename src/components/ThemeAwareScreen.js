@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../utils/themeContext';
 
 /**
@@ -8,11 +9,18 @@ import { useTheme } from '../utils/themeContext';
  */
 const ThemeAwareScreen = ({ children, style }) => {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   
   return (
     <View style={[
       styles.container,
-      { backgroundColor: theme.colors.background },
+      { 
+        backgroundColor: theme.colors.background,
+        paddingTop: insets.top,
+        paddingBottom: insets.bottom,
+        paddingLeft: insets.left,
+        paddingRight: insets.right
+      },
       style
     ]}>
       {children}
