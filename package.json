@@ -1,6 +1,8 @@
 {
   "name": "libi",
   "version": "1.0.0",
+  "description": "Like it? Buy it. A music listening statistics app that helps you discover new music to purchase.",
+  "license": "MIT",
   "main": "index.js",
   "scripts": {
     "start": "expo start",

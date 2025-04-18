@@ -1,7 +1,8 @@
 {
   "expo": {
-    "name": "libi",
+    "name": "Libi",
     "slug": "libi",
+    "description": "Like it? Buy it. A music discovery app for tracking your listening habits and finding music to purchase.",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",

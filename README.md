@@ -1,6 +1,6 @@
 # Libi - Music Listening Stats and Purchase Recommendations
 
-Libi is a cross-platform mobile app built with React Native and Expo that helps music enthusiasts track their listening habits and discover new music to buy based on their preferences.
+Libi (short for "Like it? Buy it.") is a cross-platform mobile app built with React Native and Expo that helps music enthusiasts track their listening habits and discover new music to buy based on their preferences.
 
 ## Features
 
@@ -33,7 +33,11 @@ Libi is a cross-platform mobile app built with React Native and Expo that helps 
 3. Get a Last.fm API key
    - Create an account at [Last.fm](https://www.last.fm/)
    - Get an API key from [Last.fm API](https://www.last.fm/api/account/create)
-   - Add your API key to `src/api/lastfm.js`
+   - Create a `.env` file in the root directory and add:
+     ```
+     LASTFM_API_KEY=your_api_key_here
+     LASTFM_API_SECRET=your_api_secret_here
+     ```
 
 4. Run the app
    ```
