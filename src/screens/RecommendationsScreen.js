@@ -36,28 +36,11 @@ const RecommendationsScreen = () => {
       try {
         setLoading(true);
         
-        // Fetch recent tracks and top artists data
-        const [recentTracksData, topArtistsData] = await Promise.all([
-          getUserRecentTracks(username, 50),
-          getUserTopArtists(username, 'overall', 100)
-        ]);
+        // Just fetch recent tracks - limit to 25 for better performance
+        const recentTracksData = await getUserRecentTracks(username, 25);
         
         if (!recentTracksData?.recenttracks?.track?.length) {
           throw new Error('No recent tracks found');
-        }
-        
-        // Create mapping from top artists API for artist play counts
-        const topArtistsMap = {};
-        
-        // Process top artists data
-        if (topArtistsData?.topartists?.artist) {
-          topArtistsData.topartists.artist.forEach(artist => {
-            const artistKey = artist.name.toLowerCase();
-            topArtistsMap[artistKey] = {
-              playcount: parseInt(artist.playcount, 10) || 0,
-              mbid: artist.mbid || ''
-            };
-          });
         }
         
         // Extract unique artists from recent tracks
@@ -79,10 +62,13 @@ const RecommendationsScreen = () => {
           }
         });
         
-        // Create array to hold artists
+        // Create array to hold artists and prepare for batch processing
         const uniqueArtists = [];
+        const apiPromises = [];
         
-        // Process each unique artist from recent tracks
+        // Process each unique artist from recent tracks (limit to 10 for speed)
+        let count = 0;
+        
         for (const track of recentTracksData.recenttracks.track) {
           const artistName = track.artist['#text'] || track.artist.name;
           if (artistName && !artistSet.has(artistName.toLowerCase())) {
@@ -95,144 +81,89 @@ const RecommendationsScreen = () => {
             
             if (!recentTrack) continue;
             
-            try {
-              // Get accurate artist play count using artist.getInfo with username
-              const artistInfo = await getArtistInfo(artistName, username);
-              
-              // Extract user's play count for this artist
-              let artistPlayCount = 0;
-              if (artistInfo?.artist?.stats?.userplaycount) {
-                artistPlayCount = parseInt(artistInfo.artist.stats.userplaycount, 10) || 0;
-              }
-              
-              const estimatedEarnings = (artistPlayCount * 0.004).toFixed(4);
-              
-              // Get accurate track play count using track.getInfo
-              const trackInfo = await getTrackInfo(
-                recentTrack.artist['#text'] || recentTrack.artist.name,
-                recentTrack.name,
-                username
-              );
-              
-              // Extract user's play count for this track
-              let trackPlayCount = 0;
-              if (trackInfo?.track?.userplaycount) {
-                trackPlayCount = parseInt(trackInfo.track.userplaycount, 10) || 0;
-              }
-              
-              const trackEarnings = (trackPlayCount * 0.004).toFixed(4);
-              
-              uniqueArtists.push({
-                name: artistName,
-                playCount: artistPlayCount,
-                earnings: estimatedEarnings,
-                // Add MusicBrainz ID if available
-                mbid: track.artist.mbid || artistInfo?.artist?.mbid || '',
-                // Add artist image from artist.getInfo response if available
-                image: artistInfo?.artist?.image || [],
-                // Add recent track and its all-time stats
-                recentTrack: recentTrack,
-                trackPlayCount: trackPlayCount,
-                trackEarnings: trackEarnings,
-                // Add genre from artist tags if available
-                genre: artistInfo?.artist?.tags?.tag?.[0]?.name || 'Recently played',
-                // Add purchase links
-                purchaseLinks: [
-                  { 
-                    name: 'iTunes', 
-                    icon: 'apple', 
-                    url: `https://music.apple.com/search?term=${encodeURIComponent(artistName)}`,
-                    color: '#fa243c'
-                  },
-                  { 
-                    name: 'Amazon', 
-                    icon: 'cart', 
-                    url: `https://www.amazon.com/s?k=${encodeURIComponent(artistName)}+music&i=digital-music`,
-                    color: '#ff9900'
-                  },
-                  { 
-                    name: 'YouTube', 
-                    icon: 'youtube', 
-                    url: `https://music.youtube.com/search?q=${encodeURIComponent(artistName)}`,
-                    color: '#ff0000'
-                  },
-                ]
-              });
-            } catch (error) {
-              console.error(`Error fetching info for artist ${artistName} or track ${recentTrack.name}:`, error);
-              
-              // Fallback to top artists data if the API calls fail
-              const artistAllTimeStats = topArtistsMap[artistKey] || { playcount: 0 };
-              const artistPlayCount = artistAllTimeStats.playcount || 1;
-              const estimatedEarnings = (artistPlayCount * 0.004).toFixed(4);
-              
-              // Add artist with default track stats if API calls fail
-              uniqueArtists.push({
-                name: artistName,
-                playCount: artistPlayCount,
-                earnings: estimatedEarnings,
-                mbid: track.artist.mbid || artistAllTimeStats.mbid,
-                recentTrack: recentTrack,
-                trackPlayCount: 0,
-                trackEarnings: "0.00",
-                genre: 'Recently played',
-                purchaseLinks: [
-                  { 
-                    name: 'iTunes', 
-                    icon: 'apple', 
-                    url: `https://music.apple.com/search?term=${encodeURIComponent(artistName)}`,
-                    color: '#fa243c'
-                  },
-                  { 
-                    name: 'Amazon', 
-                    icon: 'cart', 
-                    url: `https://www.amazon.com/s?k=${encodeURIComponent(artistName)}+music&i=digital-music`,
-                    color: '#ff9900'
-                  },
-                  { 
-                    name: 'YouTube', 
-                    icon: 'youtube', 
-                    url: `https://music.youtube.com/search?q=${encodeURIComponent(artistName)}`,
-                    color: '#ff0000'
-                  },
-                ]
-              });
-            }
+            // Create artist object with default values
+            const artist = {
+              name: artistName,
+              playCount: 0,
+              earnings: "0.0000",
+              mbid: track.artist.mbid || '',
+              recentTrack: recentTrack,
+              trackPlayCount: 0,
+              trackEarnings: "0.0000",
+              genre: 'Recently played',
+              purchaseLinks: [
+                { 
+                  name: 'iTunes', 
+                  icon: 'apple', 
+                  url: `https://music.apple.com/search?term=${encodeURIComponent(artistName)}`,
+                  color: '#fa243c'
+                },
+                { 
+                  name: 'Amazon', 
+                  icon: 'cart', 
+                  url: `https://www.amazon.com/s?k=${encodeURIComponent(artistName)}+music&i=digital-music`,
+                  color: '#ff9900'
+                },
+                { 
+                  name: 'YouTube', 
+                  icon: 'youtube', 
+                  url: `https://music.youtube.com/search?q=${encodeURIComponent(artistName)}`,
+                  color: '#ff0000'
+                },
+              ]
+            };
             
-            // Limit to top 20 artists for performance
-            if (uniqueArtists.length >= 20) break;
+            uniqueArtists.push(artist);
+            
+            // Store the index of this artist
+            const artistIndex = uniqueArtists.length - 1;
+            
+            // Create promises for the API calls
+            const artistInfoPromise = getArtistInfo(artistName, username)
+              .then(info => {
+                if (info?.artist) {
+                  // Update artist play count
+                  if (info.artist.stats?.userplaycount) {
+                    const playCount = parseInt(info.artist.stats.userplaycount, 10) || 0;
+                    uniqueArtists[artistIndex].playCount = playCount;
+                    uniqueArtists[artistIndex].earnings = (playCount * 0.004).toFixed(4);
+                  }
+                  
+                  // Update artist metadata
+                  uniqueArtists[artistIndex].image = info.artist.image || [];
+                  uniqueArtists[artistIndex].mbid = info.artist.mbid || uniqueArtists[artistIndex].mbid;
+                  uniqueArtists[artistIndex].genre = info.artist.tags?.tag?.[0]?.name || 'Recently played';
+                }
+              })
+              .catch(err => console.error(`Error fetching artist info for ${artistName}:`, err));
+            
+            // Track info promise
+            const trackInfoPromise = getTrackInfo(recentTrack.artist['#text'] || recentTrack.artist.name, recentTrack.name, username)
+              .then(info => {
+                if (info?.track?.userplaycount) {
+                  const playCount = parseInt(info.track.userplaycount, 10) || 0;
+                  uniqueArtists[artistIndex].trackPlayCount = playCount;
+                  uniqueArtists[artistIndex].trackEarnings = (playCount * 0.004).toFixed(4);
+                }
+              })
+              .catch(err => console.error(`Error fetching track info for ${recentTrack.name}:`, err));
+            
+            apiPromises.push(artistInfoPromise, trackInfoPromise);
+            
+            count++;
+            if (count >= 10) break; // Limit to 10 artists for speed
           }
         }
         
-        // Get MusicBrainz info for artists (limit to 10 for performance) 
-        // since we already have artist info with images from the artist.getInfo call
-        const processedArtists = await Promise.all(
-          uniqueArtists.slice(0, 10).map(async (artist) => {
-            try {
-              // Only fetch if artist has an mbid
-              if (artist.mbid) {
-                const mbInfo = await getMusicBrainzArtistInfo(artist.mbid);
-                if (mbInfo) {
-                  return {
-                    ...artist,
-                    mbArtistInfo: mbInfo
-                  };
-                }
-              }
-            } catch (error) {
-              console.error(`Error fetching MB info for artist ${artist.name}:`, error);
-            }
-            return artist;
-          })
-        );
+        // Set initial recommendations immediately
+        setRecommendations([...uniqueArtists]);
+        setLoading(false);
         
-        // Combine the processed artists with any remaining artists
-        const allRecommendations = [
-          ...processedArtists,
-          ...uniqueArtists.slice(10)
-        ];
+        // Then wait for all API calls to finish and update the state
+        await Promise.all(apiPromises);
         
-        setRecommendations(allRecommendations);
+        // Update recommendations with the data from API calls
+        setRecommendations([...uniqueArtists]);
         setError(null);
       } catch (err) {
         setError('Failed to fetch recommendations. Please try again.');
