@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { View, ScrollView, StyleSheet, Keyboard } from 'react-native';
 import { useTheme as usePaperTheme } from 'react-native-paper';
-import { getUsername } from '../utils/storage';
 import { useTheme } from '../utils/themeContext';
+import { useUser } from '../utils/userContext';
 import ThemeAwareScreen from '../components/ThemeAwareScreen';
 import ThemedText from '../components/ThemedText';
 import SearchBar from '../components/SearchBar';
@@ -24,21 +24,9 @@ const StatsScreen = () => {
   const [topArtistsLoading, setTopArtistsLoading] = useState(true);
   const [searchLoading, setSearchLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [username, setUsername] = useState('');
+  const { username, isLoading: userLoading } = useUser();
   const { theme } = useTheme();
   const paperTheme = usePaperTheme();
-
-  // Load username when component mounts
-  useEffect(() => {
-    const loadUsername = async () => {
-      const storedUsername = await getUsername();
-      if (storedUsername) {
-        setUsername(storedUsername);
-      }
-    };
-
-    loadUsername();
-  }, []);
   
   // Fetch top artists when username changes
   useEffect(() => {
@@ -115,12 +103,28 @@ const StatsScreen = () => {
     setArtistData(null);
   };
 
-  // Username not set
-  if (!username) {
+  // Loading or username not set
+  if (!username && !userLoading) {
     return (
       <ThemeAwareScreen>
         <View style={styles.centered}>
           <ThemedText>Please set your Last.fm username in the Profile tab.</ThemedText>
+        </View>
+      </ThemeAwareScreen>
+    );
+  }
+  
+  // Loading state
+  if (userLoading && !topArtists.length) {
+    return (
+      <ThemeAwareScreen>
+        <View style={styles.centered}>
+          <TopArtistsSection
+            artists={[]}
+            loading={true}
+            onSelectArtist={() => {}}
+            theme={theme}
+          />
         </View>
       </ThemeAwareScreen>
     );

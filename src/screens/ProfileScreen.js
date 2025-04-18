@@ -1,37 +1,30 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, StyleSheet, Text } from 'react-native';
 import { TextInput, Button, Surface, Switch, useTheme as usePaperTheme } from 'react-native-paper';
-import { saveUsername, getUsername } from '../utils/storage';
 import { useTheme } from '../utils/themeContext';
+import { useUser } from '../utils/userContext';
 import ThemeAwareScreen from '../components/ThemeAwareScreen';
 
 const ProfileScreen = () => {
-  const [username, setUsername] = useState('');
-  const [savedUsername, setSavedUsername] = useState('');
+  // Get username from context
+  const { username: contextUsername, saveUsername, isLoading } = useUser();
+  const [inputUsername, setInputUsername] = useState(contextUsername);
   
   // Get theme context and paper theme
   const { isDarkMode, toggleTheme } = useTheme();
   const paperTheme = usePaperTheme();
   
-  useEffect(() => {
-    // Load saved username when component mounts
-    const loadUsername = async () => {
-      const storedUsername = await getUsername();
-      if (storedUsername) {
-        setSavedUsername(storedUsername);
-        setUsername(storedUsername);
-      }
-    };
-    
-    loadUsername();
-  }, []);
+  // Update local state when context username changes
+  React.useEffect(() => {
+    if (contextUsername) {
+      setInputUsername(contextUsername);
+    }
+  }, [contextUsername]);
   
   const handleSaveUsername = async () => {
-    if (username.trim()) {
-      const success = await saveUsername(username.trim());
-      if (success) {
-        setSavedUsername(username.trim());
-      }
+    if (inputUsername && inputUsername.trim()) {
+      const success = await saveUsername(inputUsername.trim());
+      // Success is handled by the context
     }
   };
   
@@ -45,8 +38,8 @@ const ProfileScreen = () => {
         <Text style={[styles.label, { color: theme.colors.text }]}>Last.fm Username</Text>
         <TextInput
           style={styles.input}
-          value={username}
-          onChangeText={setUsername}
+          value={inputUsername}
+          onChangeText={setInputUsername}
           placeholder="Enter your Last.fm username"
           mode="outlined"
         />
@@ -55,13 +48,14 @@ const ProfileScreen = () => {
           onPress={handleSaveUsername}
           style={styles.button}
           color={theme.colors.primary}
+          loading={isLoading}
         >
           Save
         </Button>
         
-        {savedUsername ? (
+        {contextUsername ? (
           <Text style={[styles.savedMessage, { color: theme.colors.text }]}>
-            Tracking stats for: {savedUsername}
+            Tracking stats for: {contextUsername}
           </Text>
         ) : null}
       </Surface>

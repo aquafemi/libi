@@ -4,6 +4,7 @@ import { Provider as PaperProvider, MD3LightTheme, MD3DarkTheme } from 'react-na
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AppNavigator from './src/navigation/AppNavigator';
 import { ThemeProvider, useTheme } from './src/utils/themeContext';
+import { UserProvider } from './src/utils/userContext';
 
 // Main App component that uses the theme context
 const Main = () => {
@@ -29,11 +30,13 @@ const Main = () => {
   );
 };
 
-// Root component that wraps everything with the ThemeProvider
+// Root component that wraps everything with the ThemeProvider and UserProvider
 export default function App() {
   return (
     <ThemeProvider>
-      <Main />
+      <UserProvider>
+        <Main />
+      </UserProvider>
     </ThemeProvider>
   );
 }

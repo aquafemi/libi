@@ -7,8 +7,8 @@ import TrackCard from '../components/TrackCard';
 import LoadingAnimation from '../components/ui/LoadingAnimation';
 import PaginationControls from '../components/ui/PaginationControls';
 import { fetchRecentTracks } from '../services/trackService';
-import { getUsername } from '../utils/storage';
 import { useTheme } from '../utils/themeContext';
+import { useUser } from '../utils/userContext';
 import usePagination from '../hooks/usePagination';
 
 const ITEMS_PER_PAGE = 10;
@@ -20,7 +20,7 @@ const RecommendationsScreen = () => {
   const [allTracks, setAllTracks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [username, setUsername] = useState('');
+  const { username, isLoading: userLoading } = useUser();
   const { theme } = useTheme();
   const paperTheme = usePaperTheme();
   
@@ -34,18 +34,6 @@ const RecommendationsScreen = () => {
     handleNextPage,
     handlePrevPage
   } = usePagination(allTracks, ITEMS_PER_PAGE);
-
-  // Load username when component mounts
-  useEffect(() => {
-    const loadUsername = async () => {
-      const storedUsername = await getUsername();
-      if (storedUsername) {
-        setUsername(storedUsername);
-      }
-    };
-    
-    loadUsername();
-  }, []);
 
   // Fetch recent tracks when username changes
   useEffect(() => {
@@ -76,7 +64,7 @@ const RecommendationsScreen = () => {
   );
 
   // Content loading state
-  if (loading && !allTracks.length) {
+  if ((loading || userLoading) && !allTracks.length) {
     return (
       <ThemeAwareScreen style={styles.centered}>
         <LoadingAnimation />
@@ -94,7 +82,7 @@ const RecommendationsScreen = () => {
   }
 
   // Username not set
-  if (!username) {
+  if (!username && !userLoading) {
     return (
       <ThemeAwareScreen style={styles.centered}>
         <Text style={{ color: theme.colors.text }}>Please set your Last.fm username in the Profile tab.</Text>
