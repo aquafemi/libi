@@ -266,181 +266,138 @@ const RecommendationsScreen = () => {
   }, [currentPage, allArtists]);
 
   useEffect(() => {
-    const fetchRecommendations = async () => {
+    const fetchRecentTracks = async () => {
       if (!username) return;
       
       try {
         setLoading(true);
         
-        // Fetch a larger number of recent tracks to have enough for pagination
+        // Fetch recent tracks for pagination
         const recentTracksData = await getUserRecentTracks(username, 100);
         
         if (!recentTracksData?.recenttracks?.track?.length) {
           throw new Error('No recent tracks found');
         }
         
-        // Extract unique artists from recent tracks
-        const artistSet = new Set();
-        const artistToTracksMap = {};
-        
-        // Organize recent tracks by artist
-        recentTracksData.recenttracks.track.forEach(track => {
-          const artistName = track.artist['#text'] || track.artist.name;
-          
-          if (artistName) {
-            const artistKey = artistName.toLowerCase();
-            
-            // Store tracks for each artist (for album art and display)
-            if (!artistToTracksMap[artistKey]) {
-              artistToTracksMap[artistKey] = [];
-            }
-            artistToTracksMap[artistKey].push(track);
-          }
-        });
-        
-        // Create array to hold artists and prepare for batch processing
-        const uniqueArtists = [];
+        // Process tracks directly without organizing by artist
+        const recentTracks = [];
         const apiPromises = [];
         
-        // Process each unique artist from recent tracks (limit to 10 for speed)
-        let count = 0;
+        // Limit to 30 tracks (3 pages) for performance
+        const tracksToProcess = recentTracksData.recenttracks.track.slice(0, 30);
         
-        for (const track of recentTracksData.recenttracks.track) {
+        // Process each track
+        tracksToProcess.forEach((track, index) => {
           const artistName = track.artist['#text'] || track.artist.name;
-          if (artistName && !artistSet.has(artistName.toLowerCase())) {
-            const artistKey = artistName.toLowerCase();
-            artistSet.add(artistKey);
-            
-            // Get recent track for this artist (first one in the list)
-            const artistTracks = artistToTracksMap[artistKey] || [];
-            const recentTrack = artistTracks.length > 0 ? artistTracks[0] : null;
-            
-            if (!recentTrack) continue;
-            
-            // Create artist object with default values
-            const artist = {
-              name: artistName,
-              playCount: 0,
-              earnings: "0.0000",
-              mbid: track.artist.mbid || '',
-              recentTrack: recentTrack,
-              trackPlayCount: 0,
-              trackEarnings: "0.0000",
-              genre: 'Recently played',
-              streamingLinks: [
-                { 
-                  name: 'Spotify', 
-                  icon: 'spotify', 
-                  iconSet: 'fa5',
-                  url: `https://open.spotify.com/search/${encodeURIComponent(artistName)}`,
-                  color: '#1DB954'
-                },
-                { 
-                  name: 'Apple Music', 
-                  icon: 'apple', 
-                  iconSet: 'mc',
-                  url: `https://music.apple.com/search?term=${encodeURIComponent(artistName)}`,
-                  color: '#fa243c'
-                },
-                { 
-                  name: 'YouTube Music', 
-                  icon: 'youtube', 
-                  iconSet: 'mc',
-                  url: `https://music.youtube.com/search?q=${encodeURIComponent(artistName)}`,
-                  color: '#ff0000'
-                },
-                { 
-                  name: 'Amazon Music', 
-                  icon: 'amazon',
-                  iconSet: 'fa5',
-                  url: `https://music.amazon.com/search/${encodeURIComponent(artistName)}`,
-                  color: '#00A8E1'
-                },
-              ],
-              purchaseLinks: [
-                { 
-                  name: 'Amazon', 
-                  icon: 'shopping-cart', 
-                  iconSet: 'fa5', 
-                  url: `https://www.amazon.com/s?k=${encodeURIComponent(artistName)}+music&i=digital-music`,
-                  color: '#ff9900'
-                },
-              ]
-            };
-            
-            uniqueArtists.push(artist);
-            
-            // Store the index of this artist
-            const artistIndex = uniqueArtists.length - 1;
-            
-            // Create promises for the API calls
-            const artistInfoPromise = getArtistInfo(artistName, username)
-              .then(info => {
-                if (info?.artist) {
-                  // Update artist play count
-                  if (info.artist.stats?.userplaycount) {
-                    const playCount = parseInt(info.artist.stats.userplaycount, 10) || 0;
-                    uniqueArtists[artistIndex].playCount = playCount;
-                    uniqueArtists[artistIndex].earnings = (playCount * 0.004).toFixed(4);
-                  }
-                  
-                  // Update artist metadata
-                  uniqueArtists[artistIndex].image = info.artist.image || [];
-                  uniqueArtists[artistIndex].mbid = info.artist.mbid || uniqueArtists[artistIndex].mbid;
-                  uniqueArtists[artistIndex].genre = info.artist.tags?.tag?.[0]?.name || 'Recently played';
-                }
-              })
-              .catch(err => console.error(`Error fetching artist info for ${artistName}:`, err));
-            
-            // Track info promise
-            const trackInfoPromise = getTrackInfo(recentTrack.artist['#text'] || recentTrack.artist.name, recentTrack.name, username)
-              .then(info => {
-                if (info?.track?.userplaycount) {
-                  const playCount = parseInt(info.track.userplaycount, 10) || 0;
-                  uniqueArtists[artistIndex].trackPlayCount = playCount;
-                  uniqueArtists[artistIndex].trackEarnings = (playCount * 0.004).toFixed(4);
-                }
-              })
-              .catch(err => console.error(`Error fetching track info for ${recentTrack.name}:`, err));
-            
-            apiPromises.push(artistInfoPromise, trackInfoPromise);
-            
-            count++;
-            if (count >= 30) break; // Limit to 30 artists (3 pages) for performance
-          }
-        }
+          const trackName = track.name;
+          
+          // Create track object with default values
+          const trackItem = {
+            id: `${trackName}-${artistName}-${index}`,
+            name: trackName,
+            artistName: artistName,
+            date: track.date,
+            nowPlaying: track['@attr']?.nowplaying === 'true',
+            image: track.image || [],
+            playCount: 0,
+            earnings: "0.0000",
+            artistPlayCount: 0,
+            artistEarnings: "0.0000",
+            streamingLinks: [
+              { 
+                name: 'Spotify', 
+                icon: 'spotify', 
+                iconSet: 'fa5',
+                url: `https://open.spotify.com/search/${encodeURIComponent(trackName + ' ' + artistName)}`,
+                color: '#1DB954'
+              },
+              { 
+                name: 'Apple Music', 
+                icon: 'apple', 
+                iconSet: 'mc',
+                url: `https://music.apple.com/search?term=${encodeURIComponent(trackName + ' ' + artistName)}`,
+                color: '#fa243c'
+              },
+              { 
+                name: 'YouTube Music', 
+                icon: 'youtube', 
+                iconSet: 'mc',
+                url: `https://music.youtube.com/search?q=${encodeURIComponent(trackName + ' ' + artistName)}`,
+                color: '#ff0000'
+              },
+              { 
+                name: 'Amazon Music', 
+                icon: 'amazon',
+                iconSet: 'fa5',
+                url: `https://music.amazon.com/search/${encodeURIComponent(trackName + ' ' + artistName)}`,
+                color: '#00A8E1'
+              },
+            ],
+            purchaseLinks: [
+              { 
+                name: 'Amazon', 
+                icon: 'shopping-cart', 
+                iconSet: 'fa5', 
+                url: `https://www.amazon.com/s?k=${encodeURIComponent(trackName + ' ' + artistName)}&i=digital-music`,
+                color: '#ff9900'
+              },
+            ]
+          };
+          
+          recentTracks.push(trackItem);
+          
+          // Track info promise - get play count
+          const trackInfoPromise = getTrackInfo(artistName, trackName, username)
+            .then(info => {
+              if (info?.track?.userplaycount) {
+                const playCount = parseInt(info.track.userplaycount, 10) || 0;
+                recentTracks[index].playCount = playCount;
+                recentTracks[index].earnings = (playCount * 0.004).toFixed(4);
+              }
+            })
+            .catch(err => console.error(`Error fetching track info for ${trackName}:`, err));
+          
+          // Artist info promise - get artist play count
+          const artistInfoPromise = getArtistInfo(artistName, username)
+            .then(info => {
+              if (info?.artist?.stats?.userplaycount) {
+                const playCount = parseInt(info.artist.stats.userplaycount, 10) || 0;
+                recentTracks[index].artistPlayCount = playCount;
+                recentTracks[index].artistEarnings = (playCount * 0.004).toFixed(4);
+              }
+            })
+            .catch(err => console.error(`Error fetching artist info for ${artistName}:`, err));
+          
+          apiPromises.push(trackInfoPromise, artistInfoPromise);
+        });
         
-        // Set initial artists immediately to show loading state
-        setAllArtists([...uniqueArtists]);
+        // Set initial tracks immediately
+        setAllArtists(recentTracks);
         setLoading(false);
         
         // Then wait for all API calls to finish and update the state
         await Promise.all(apiPromises);
         
-        // Update all artists with the data from API calls
-        const updatedArtists = [...uniqueArtists];
-        setAllArtists(updatedArtists);
-        
         // Calculate total pages
-        const pages = Math.ceil(updatedArtists.length / ITEMS_PER_PAGE);
+        const pages = Math.ceil(recentTracks.length / ITEMS_PER_PAGE);
         setTotalPages(pages);
         
         // Reset to first page when data changes
         setCurrentPage(0);
         
-        // Immediately update displayed artists
-        setDisplayedArtists(updatedArtists.slice(0, ITEMS_PER_PAGE));
+        // Update displayed tracks
+        setDisplayedArtists(recentTracks.slice(0, ITEMS_PER_PAGE));
         
         setError(null);
       } catch (err) {
-        setError('Failed to fetch recommendations. Please try again.');
+        setError('Failed to fetch recent tracks. Please try again.');
         console.error(err);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchRecommendations();
+    fetchRecentTracks();
   }, [username]);
 
   const openUrl = (url) => {
@@ -459,7 +416,7 @@ const RecommendationsScreen = () => {
       mode="elevated"
     >
       <Card.Cover 
-        source={{ uri: item.recentTrack ? getTrackImage(item.recentTrack) : getArtistImage(item) }} 
+        source={{ uri: getTrackImage(item) }} 
         style={styles.albumArt}
         resizeMode="cover"
       />
@@ -468,50 +425,48 @@ const RecommendationsScreen = () => {
           numberOfLines={1} 
           style={[styles.cardTitle, { color: theme.colors.text }]}
         >
-          {item.recentTrack?.date ? formatRelativeTime(item.recentTrack.date) : (item.recentTrack?.['@attr']?.nowplaying === 'true' ? 'Now Playing' : 'Recently')}
+          {item.date ? formatRelativeTime(item.date) : (item.nowPlaying ? 'Now Playing' : 'Recently')}
         </Title>
         <View style={styles.infoContainer}>
           <View style={styles.statsContainer}>
             {/* Track stats row with name and play count side by side */}
-            {item.recentTrack && (
-              <View style={styles.trackInfoRow}>
-                <View style={styles.nameContainer}>
-                  <ThemedText style={styles.infoLabel}>Track</ThemedText>
-                  <ThemedText style={styles.trackName} numberOfLines={1}>{item.recentTrack.name}</ThemedText>
-                </View>
-                <View style={styles.countContainer}>
-                  <AnimatedCount 
-                    value={item.trackPlayCount} 
-                    style={[styles.statCount, { color: theme.colors.text }]}
-                    duration={1800}
-                    delay={400}
-                    suffix={item.trackPlayCount === 1 ? " play" : " plays"}
-                  />
-                  <AnimatedEarnings 
-                    value={item.trackEarnings} 
-                    style={[styles.earnings, { backgroundColor: theme.colors.accent }]} 
-                    duration={1500}
-                    delay={700}
-                  />
-                </View>
-              </View>
-            )}
-            
-            {/* Artist row with name and play count side by side */}
-            <View style={styles.artistInfoRow}>
+            <View style={styles.trackInfoRow}>
               <View style={styles.nameContainer}>
-                <ThemedText style={styles.infoLabel}>Artist</ThemedText>
-                <ThemedText style={styles.artistName} numberOfLines={1}>{item.name}</ThemedText>
+                <ThemedText style={styles.infoLabel}>Track</ThemedText>
+                <ThemedText style={styles.trackName} numberOfLines={1}>{item.name}</ThemedText>
               </View>
               <View style={styles.countContainer}>
                 <AnimatedCount 
                   value={item.playCount} 
                   style={[styles.statCount, { color: theme.colors.text }]}
                   duration={1800}
+                  delay={400}
                   suffix={item.playCount === 1 ? " play" : " plays"}
                 />
                 <AnimatedEarnings 
                   value={item.earnings} 
+                  style={[styles.earnings, { backgroundColor: theme.colors.accent }]} 
+                  duration={1500}
+                  delay={700}
+                />
+              </View>
+            </View>
+            
+            {/* Artist row with name and play count side by side */}
+            <View style={styles.artistInfoRow}>
+              <View style={styles.nameContainer}>
+                <ThemedText style={styles.infoLabel}>Artist</ThemedText>
+                <ThemedText style={styles.artistName} numberOfLines={1}>{item.artistName}</ThemedText>
+              </View>
+              <View style={styles.countContainer}>
+                <AnimatedCount 
+                  value={item.artistPlayCount} 
+                  style={[styles.statCount, { color: theme.colors.text }]}
+                  duration={1800}
+                  suffix={item.artistPlayCount === 1 ? " play" : " plays"}
+                />
+                <AnimatedEarnings 
+                  value={item.artistEarnings} 
                   style={[styles.earnings, { backgroundColor: theme.colors.primary }]} 
                   duration={2000}
                   delay={300}
@@ -611,7 +566,7 @@ const RecommendationsScreen = () => {
             ref={flatListRef}
             data={displayedArtists}
             renderItem={renderArtistItem}
-            keyExtractor={(item, index) => `${item.mbid || item.name}-${index}`}
+            keyExtractor={(item) => item.id}
             contentContainerStyle={styles.list}
             showsVerticalScrollIndicator={false}
           />
