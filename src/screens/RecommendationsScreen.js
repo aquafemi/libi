@@ -1,13 +1,76 @@
-import React, { useState, useEffect } from 'react';
-import { View, FlatList, StyleSheet, Linking, Text, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, FlatList, StyleSheet, Linking, Text, TouchableOpacity, Animated } from 'react-native';
 import { Card, Title, Paragraph, ActivityIndicator, useTheme as usePaperTheme } from 'react-native-paper';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import { getUserRecentTracks, getMusicBrainzArtistInfo, getArtistInfo, getUserTopArtists, getTrackInfo } from '../api/lastfm';
 import { getUsername } from '../utils/storage';
 import { getArtistImage, getTrackImage } from '../utils/imageHelper';
 import { useTheme } from '../utils/themeContext';
 import ThemeAwareScreen from '../components/ThemeAwareScreen';
 import ThemedText from '../components/ThemedText';
+
+// Animated count component for number animation
+const AnimatedCount = ({ value, style, suffix = '', prefix = '', duration = 1500, delay = 0, decimalPlaces = 0 }) => {
+  const animatedValue = useRef(new Animated.Value(0)).current;
+  const [displayValue, setDisplayValue] = useState('0');
+  
+  useEffect(() => {
+    // Parse the initial value from string to number
+    const finalValue = parseFloat(value) || 0;
+    
+    // Reset animation when value changes
+    animatedValue.setValue(0);
+    
+    // Start animation after specified delay
+    Animated.timing(animatedValue, {
+      toValue: finalValue,
+      duration: duration,
+      delay: delay,
+      useNativeDriver: false,
+    }).start();
+    
+    // Update display value during animation
+    const listener = animatedValue.addListener(({ value }) => {
+      if (decimalPlaces > 0) {
+        setDisplayValue(value.toFixed(decimalPlaces));
+      } else {
+        setDisplayValue(Math.floor(value).toLocaleString());
+      }
+    });
+    
+    // Clean up listener
+    return () => {
+      animatedValue.removeListener(listener);
+    };
+  }, [value, duration, delay, decimalPlaces]);
+  
+  return <Text style={style}>{prefix}{displayValue}{suffix}</Text>;
+};
+
+// Animated earnings component with counting up effect
+const AnimatedEarnings = ({ value, style, duration = 1500, delay = 0 }) => {
+  return (
+    <AnimatedCount 
+      value={value} 
+      style={style} 
+      prefix="$" 
+      duration={duration}
+      delay={delay}
+      decimalPlaces={4} 
+    />
+  );
+};
+
+// IconComponent to handle different icon types
+const IconComponent = ({ iconSet, name, size, color }) => {
+  switch(iconSet) {
+    case 'fa5':
+      return <FontAwesome5 name={name} size={size} color={color} />;
+    case 'mc':
+    default:
+      return <MaterialCommunityIcons name={name} size={size} color={color} />;
+  }
+};
 
 const RecommendationsScreen = () => {
   const [recommendations, setRecommendations] = useState([]);
@@ -91,24 +154,43 @@ const RecommendationsScreen = () => {
               trackPlayCount: 0,
               trackEarnings: "0.0000",
               genre: 'Recently played',
-              purchaseLinks: [
+              streamingLinks: [
                 { 
-                  name: 'iTunes', 
+                  name: 'Spotify', 
+                  icon: 'spotify', 
+                  iconSet: 'fa5',
+                  url: `https://open.spotify.com/search/${encodeURIComponent(artistName)}`,
+                  color: '#1DB954'
+                },
+                { 
+                  name: 'Apple Music', 
                   icon: 'apple', 
+                  iconSet: 'mc',
                   url: `https://music.apple.com/search?term=${encodeURIComponent(artistName)}`,
                   color: '#fa243c'
                 },
                 { 
-                  name: 'Amazon', 
-                  icon: 'cart', 
-                  url: `https://www.amazon.com/s?k=${encodeURIComponent(artistName)}+music&i=digital-music`,
-                  color: '#ff9900'
-                },
-                { 
-                  name: 'YouTube', 
+                  name: 'YouTube Music', 
                   icon: 'youtube', 
+                  iconSet: 'mc',
                   url: `https://music.youtube.com/search?q=${encodeURIComponent(artistName)}`,
                   color: '#ff0000'
+                },
+                { 
+                  name: 'Amazon Music', 
+                  icon: 'amazon',
+                  iconSet: 'fa5',
+                  url: `https://music.amazon.com/search/${encodeURIComponent(artistName)}`,
+                  color: '#00A8E1'
+                },
+              ],
+              purchaseLinks: [
+                { 
+                  name: 'Amazon', 
+                  icon: 'shopping-cart', 
+                  iconSet: 'fa5', 
+                  url: `https://www.amazon.com/s?k=${encodeURIComponent(artistName)}+music&i=digital-music`,
+                  color: '#ff9900'
                 },
               ]
             };
@@ -214,12 +296,20 @@ const RecommendationsScreen = () => {
             <View style={styles.statsRow}>
               <Text style={styles.statsLabel}>Artist:</Text>
               <View style={styles.statsValueContainer}>
-                <Text style={[styles.statsValue, { color: theme.colors.text }]}>
-                  {item.playCount.toLocaleString()} {item.playCount === 1 ? 'play' : 'plays'}
-                </Text>
-                <Text style={[styles.earnings, { backgroundColor: theme.colors.primary }]}>
-                  ${parseFloat(item.earnings).toFixed(4)}
-                </Text>
+                <View style={styles.playCountContainer}>
+                  <AnimatedCount 
+                    value={item.playCount} 
+                    style={[styles.statsValue, { color: theme.colors.text }]}
+                    duration={1800}
+                    suffix={item.playCount === 1 ? " play" : " plays"}
+                  />
+                </View>
+                <AnimatedEarnings 
+                  value={item.earnings} 
+                  style={[styles.earnings, { backgroundColor: theme.colors.primary }]} 
+                  duration={2000}
+                  delay={300}
+                />
               </View>
             </View>
             
@@ -235,29 +325,69 @@ const RecommendationsScreen = () => {
                 <View style={styles.statsRow}>
                   <Text style={styles.statsLabel}>Track:</Text>
                   <View style={styles.statsValueContainer}>
-                    <Text style={[styles.statsValue, { color: theme.colors.text }]}>
-                      {item.trackPlayCount.toLocaleString()} {item.trackPlayCount === 1 ? 'play' : 'plays'}
-                    </Text>
-                    <Text style={[styles.earnings, { backgroundColor: theme.colors.accent }]}>
-                      ${parseFloat(item.trackEarnings).toFixed(4)}
-                    </Text>
+                    <View style={styles.playCountContainer}>
+                      <AnimatedCount 
+                        value={item.trackPlayCount} 
+                        style={[styles.statsValue, { color: theme.colors.text }]}
+                        duration={1800}
+                        delay={400}
+                        suffix={item.trackPlayCount === 1 ? " play" : " plays"}
+                      />
+                    </View>
+                    <AnimatedEarnings 
+                      value={item.trackEarnings} 
+                      style={[styles.earnings, { backgroundColor: theme.colors.accent }]} 
+                      duration={1500}
+                      delay={700}
+                    />
                   </View>
                 </View>
               </>
             )}
           </View>
         </View>
-        <View style={styles.purchaseContainer}>
-          {item.purchaseLinks?.map(link => (
-            <TouchableOpacity 
-              key={link.name}
-              onPress={() => openUrl(link.url)}
-              style={[styles.purchaseButton, { backgroundColor: link.color }]}
-              activeOpacity={0.7}
-            >
-              <MaterialCommunityIcons name={link.icon} size={24} color="white" />
-            </TouchableOpacity>
-          ))}
+        <View style={styles.linksContainer}>
+          <View style={styles.linksSectionHeader}>
+            <Text style={[styles.linksSectionTitle, { color: theme.colors.text }]}>Stream</Text>
+            <View style={styles.linksRow}>
+              {item.streamingLinks?.map(link => (
+                <TouchableOpacity 
+                  key={link.name}
+                  onPress={() => openUrl(link.url)}
+                  style={[styles.linkButton, { backgroundColor: link.color }]}
+                  activeOpacity={0.7}
+                >
+                  <IconComponent 
+                    iconSet={link.iconSet} 
+                    name={link.icon} 
+                    size={20} 
+                    color="white" 
+                  />
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+          
+          <View style={styles.linksSectionHeader}>
+            <Text style={[styles.linksSectionTitle, { color: theme.colors.text }]}>Buy</Text>
+            <View style={styles.linksRow}>
+              {item.purchaseLinks?.map(link => (
+                <TouchableOpacity 
+                  key={link.name}
+                  onPress={() => openUrl(link.url)}
+                  style={[styles.linkButton, { backgroundColor: link.color }]}
+                  activeOpacity={0.7}
+                >
+                  <IconComponent 
+                    iconSet={link.iconSet} 
+                    name={link.icon} 
+                    size={20} 
+                    color="white" 
+                  />
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
         </View>
       </Card.Content>
     </Card>
@@ -369,6 +499,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  playCountContainer: {
+    flex: 1,
+    justifyContent: 'center',
+  },
   statsValue: {
     fontSize: 14,
     fontWeight: '500',
@@ -389,15 +523,29 @@ const styles = StyleSheet.create({
     marginBottom: 2,
     fontStyle: 'italic',
   },
-  purchaseContainer: {
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
+  linksContainer: {
     marginTop: 12,
   },
-  purchaseButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  linksSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  linksSectionTitle: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    width: 50,
+    marginRight: 4,
+  },
+  linksRow: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+  },
+  linkButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 8,
