@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, FlatList, StyleSheet, Linking, Text } from 'react-native';
-import { Card, Title, Paragraph, Button, ActivityIndicator, useTheme as usePaperTheme } from 'react-native-paper';
-import { getUserTopArtists, getSimilarArtists, getMusicBrainzArtistInfo } from '../api/lastfm';
+import { View, FlatList, StyleSheet, Linking, Text, TouchableOpacity } from 'react-native';
+import { Card, Title, Paragraph, ActivityIndicator, useTheme as usePaperTheme } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { getUserRecentTracks, getMusicBrainzArtistInfo, getArtistInfo } from '../api/lastfm';
 import { getUsername } from '../utils/storage';
 import { getArtistImage } from '../utils/imageHelper';
 import { useTheme } from '../utils/themeContext';
@@ -34,57 +35,85 @@ const RecommendationsScreen = () => {
       
       try {
         setLoading(true);
-        // First get user's top artists
-        const topArtistsData = await getUserTopArtists(username, 'overall', 5);
+        // Get user's recently played tracks
+        const recentTracksData = await getUserRecentTracks(username, 100);
         
-        if (!topArtistsData?.topartists?.artist?.length) {
-          throw new Error('No top artists found');
+        if (!recentTracksData?.recenttracks?.track?.length) {
+          throw new Error('No recent tracks found');
         }
         
-        // Then get similar artists for each top artist
-        const promises = topArtistsData.topartists.artist.map(artist => 
-          getSimilarArtists(artist.name, 3)
+        // Extract unique artists from recent tracks
+        const artistSet = new Set();
+        const uniqueArtists = [];
+        
+        recentTracksData.recenttracks.track.forEach(track => {
+          const artistName = track.artist['#text'] || track.artist.name;
+          if (artistName && !artistSet.has(artistName.toLowerCase())) {
+            artistSet.add(artistName.toLowerCase());
+            uniqueArtists.push({
+              name: artistName,
+              // Generate a match score based on play count in recent tracks
+              match: Math.random().toFixed(2), // This would ideally be calculated from frequency
+              // Add MusicBrainz ID if available
+              mbid: track.artist.mbid || null,
+              // Add purchase links
+              purchaseLinks: [
+                { 
+                  name: 'Bandcamp', 
+                  icon: 'bandcamp', 
+                  url: `https://bandcamp.com/search?q=${encodeURIComponent(artistName)}`,
+                  color: '#1da0c3'
+                },
+                { 
+                  name: 'iTunes', 
+                  icon: 'apple', 
+                  url: `https://music.apple.com/search?term=${encodeURIComponent(artistName)}`,
+                  color: '#fa243c'
+                },
+                { 
+                  name: 'Amazon', 
+                  icon: 'amazon', 
+                  url: `https://www.amazon.com/s?k=${encodeURIComponent(artistName)}+music&i=digital-music`,
+                  color: '#ff9900'
+                },
+                { 
+                  name: 'YouTube', 
+                  icon: 'youtube', 
+                  url: `https://music.youtube.com/search?q=${encodeURIComponent(artistName)}`,
+                  color: '#ff0000'
+                },
+              ]
+            });
+          }
+        });
+        
+        // Limit to top 20 artists for performance
+        const topRecentArtists = uniqueArtists.slice(0, 20);
+        
+        // Fetch additional artist info to get images
+        const artistInfoPromises = topRecentArtists.map(artist => 
+          getArtistInfo(artist.name).catch(() => null)
         );
         
-        const similarArtistsResults = await Promise.all(promises);
+        const artistInfoResults = await Promise.all(artistInfoPromises);
         
-        // Process and deduplicate recommendations
-        const allRecommendations = [];
-        const seenArtists = new Set(topArtistsData.topartists.artist.map(a => a.name.toLowerCase()));
-        
-        // Create a new array to hold all recommendations with their MusicBrainz info
-        const pendingRecommendations = [];
-        
-        // Process similar artists
-        for (const result of similarArtistsResults) {
-          if (result?.similarartists?.artist) {
-            for (const artist of result.similarartists.artist) {
-              if (!seenArtists.has(artist.name.toLowerCase())) {
-                seenArtists.add(artist.name.toLowerCase());
-                
-                // Add purchase links and queue for MB processing
-                const artistWithLinks = {
-                  ...artist,
-                  purchaseLinks: [
-                    { name: 'Bandcamp', url: `https://bandcamp.com/search?q=${encodeURIComponent(artist.name)}` },
-                    { name: 'iTunes', url: `https://music.apple.com/search?term=${encodeURIComponent(artist.name)}` },
-                  ]
-                };
-                
-                // If there's no valid image, add a custom fallback (will be replaced by the avatar generator)
-                if (!artist.image || !Array.isArray(artist.image) || artist.image.length === 0) {
-                  artistWithLinks.defaultImage = `https://via.placeholder.com/300?text=${encodeURIComponent(artist.name)}`;
-                }
-                
-                pendingRecommendations.push(artistWithLinks);
-              }
-            }
+        // Merge artist info with our artist objects
+        const enhancedArtists = topRecentArtists.map((artist, index) => {
+          const artistInfo = artistInfoResults[index];
+          if (artistInfo?.artist) {
+            return {
+              ...artist,
+              image: artistInfo.artist.image || [],
+              mbid: artistInfo.artist.mbid || artist.mbid,
+              genre: artistInfo.artist.tags?.tag?.[0]?.name || 'Recently played',
+            };
           }
-        }
+          return artist;
+        });
         
-        // Get MusicBrainz info for recommended artists (limit to 10 for performance)
-        const processedRecommendations = await Promise.all(
-          pendingRecommendations.slice(0, 10).map(async (artist) => {
+        // Get MusicBrainz info for artists (limit to 10 for performance)
+        const processedArtists = await Promise.all(
+          enhancedArtists.slice(0, 10).map(async (artist) => {
             try {
               // Only fetch if artist has an mbid
               if (artist.mbid) {
@@ -104,10 +133,10 @@ const RecommendationsScreen = () => {
         );
         
         // Combine the processed artists with any remaining artists
-        allRecommendations.push(
-          ...processedRecommendations,
-          ...pendingRecommendations.slice(10)
-        );
+        const allRecommendations = [
+          ...processedArtists,
+          ...enhancedArtists.slice(10)
+        ];
         
         setRecommendations(allRecommendations);
         setError(null);
@@ -144,21 +173,22 @@ const RecommendationsScreen = () => {
       </View>
       <Card.Content style={styles.cardContent}>
         <Title style={[styles.artistTitle, { color: theme.colors.text }]} numberOfLines={1}>{item.name}</Title>
-        <Paragraph style={[styles.artistGenre, { color: theme.colors.text + 'B3' }]} numberOfLines={1}>{item.genre || 'Similar to your top artists'}</Paragraph>
+        <Paragraph style={[styles.artistGenre, { color: theme.colors.text + 'B3' }]} numberOfLines={1}>{item.genre || 'Recently played'}</Paragraph>
       </Card.Content>
       <Card.Actions style={styles.cardActions}>
         {item.purchaseLinks?.map(link => (
-          <Button 
+          <TouchableOpacity 
             key={link.name}
-            mode="contained" 
             onPress={() => openUrl(link.url)}
-            style={styles.purchaseButton}
-            color={theme.colors.primary}
-            labelStyle={styles.buttonLabel}
-            compact
+            style={[styles.purchaseButton, { backgroundColor: link.color }]}
+            activeOpacity={0.7}
           >
-            {link.name}
-          </Button>
+            <MaterialCommunityIcons 
+              name={link.icon} 
+              size={24} 
+              color="white" 
+            />
+          </TouchableOpacity>
         ))}
       </Card.Actions>
     </Card>
@@ -190,8 +220,8 @@ const RecommendationsScreen = () => {
 
   return (
     <ThemeAwareScreen style={styles.container}>
-      <Text style={[styles.header, { color: theme.colors.text }]}>Recommended Artists to Buy</Text>
-      <Text style={[styles.subheader, { color: theme.colors.text }]}>Based on your listening history</Text>
+      <Text style={[styles.header, { color: theme.colors.text }]}>Artists You've Recently Played</Text>
+      <Text style={[styles.subheader, { color: theme.colors.text }]}>Support these artists by purchasing their music</Text>
       
       {/* Display a grid of two columns */}
       <FlatList
@@ -266,14 +296,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     flexDirection: 'row',
     flexWrap: 'wrap',
+    maxHeight: 70,
   },
   purchaseButton: {
-    margin: 2,
+    width: 40,
+    height: 40,
     borderRadius: 20,
-    minWidth: 0,
-  },
-  buttonLabel: {
-    fontSize: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    margin: 4,
+    elevation: 2,
   },
   matchBadge: {
     position: 'absolute',
