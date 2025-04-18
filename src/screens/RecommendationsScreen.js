@@ -42,28 +42,45 @@ const RecommendationsScreen = () => {
           throw new Error('No recent tracks found');
         }
         
-        // Extract unique artists from recent tracks
+        // Extract unique artists and count plays from recent tracks
         const artistSet = new Set();
+        const artistPlayCounts = {};
         const uniqueArtists = [];
         
+        // Count plays per artist and sort by play count
+        recentTracksData.recenttracks.track.forEach(track => {
+          const artistName = track.artist['#text'] || track.artist.name;
+          if (artistName) {
+            const artistKey = artistName.toLowerCase();
+            artistPlayCounts[artistKey] = (artistPlayCounts[artistKey] || 0) + 1;
+          }
+        });
+        
+        // Log available icons for debugging
+        console.log('Using Material Community Icons');
+        
+        // Create artist objects with streaming earnings estimates
         recentTracksData.recenttracks.track.forEach(track => {
           const artistName = track.artist['#text'] || track.artist.name;
           if (artistName && !artistSet.has(artistName.toLowerCase())) {
-            artistSet.add(artistName.toLowerCase());
+            const artistKey = artistName.toLowerCase();
+            artistSet.add(artistKey);
+            
+            // Get play count for this artist
+            const playCount = artistPlayCounts[artistKey] || 1;
+            
+            // Calculate estimated streaming revenue
+            // Average streaming rate is around $0.004 per stream across platforms
+            const estimatedEarnings = (playCount * 0.004).toFixed(5);
+            
             uniqueArtists.push({
               name: artistName,
-              // Generate a match score based on play count in recent tracks
-              match: Math.random().toFixed(2), // This would ideally be calculated from frequency
+              playCount: playCount,
+              earnings: estimatedEarnings,
               // Add MusicBrainz ID if available
               mbid: track.artist.mbid || null,
               // Add purchase links
               purchaseLinks: [
-                { 
-                  name: 'Bandcamp', 
-                  icon: 'bandcamp', 
-                  url: `https://bandcamp.com/search?q=${encodeURIComponent(artistName)}`,
-                  color: '#1da0c3'
-                },
                 { 
                   name: 'iTunes', 
                   icon: 'apple', 
@@ -72,7 +89,7 @@ const RecommendationsScreen = () => {
                 },
                 { 
                   name: 'Amazon', 
-                  icon: 'amazon', 
+                  icon: 'cart', 
                   url: `https://www.amazon.com/s?k=${encodeURIComponent(artistName)}+music&i=digital-music`,
                   color: '#ff9900'
                 },
@@ -169,7 +186,8 @@ const RecommendationsScreen = () => {
         resizeMode="cover"
       />
       <View style={[styles.matchBadge, { backgroundColor: theme.colors.primary + 'D9' }]}>
-        <Text style={styles.matchText}>{Math.round(parseFloat(item.match) * 100)}% match</Text>
+        <Text style={styles.matchText}>${item.earnings}</Text>
+        <Text style={styles.playCountText}>{item.playCount} {item.playCount === 1 ? 'play' : 'plays'}</Text>
       </View>
       <Card.Content style={styles.cardContent}>
         <Title style={[styles.artistTitle, { color: theme.colors.text }]} numberOfLines={1}>{item.name}</Title>
@@ -221,7 +239,7 @@ const RecommendationsScreen = () => {
   return (
     <ThemeAwareScreen style={styles.container}>
       <Text style={[styles.header, { color: theme.colors.text }]}>Artists You've Recently Played</Text>
-      <Text style={[styles.subheader, { color: theme.colors.text }]}>Support these artists by purchasing their music</Text>
+      <Text style={[styles.subheader, { color: theme.colors.text }]}>How much they've earned from your streams</Text>
       
       {/* Display a grid of two columns */}
       <FlatList
@@ -311,14 +329,20 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 8,
     right: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 20,
+    alignItems: 'center',
   },
   matchText: {
     color: 'white',
     fontWeight: 'bold',
-    fontSize: 11,
+    fontSize: 14,
+  },
+  playCountText: {
+    color: 'white',
+    fontSize: 10,
+    opacity: 0.9,
   },
 });
 

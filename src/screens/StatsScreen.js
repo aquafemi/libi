@@ -44,34 +44,57 @@ const StatsScreen = () => {
           const topArtistsWithImages = await Promise.all(
             artistsData.topartists.artist.slice(0, 5).map(async (artist) => {
               try {
+                // Calculate streaming revenue estimate
+                const estimatedEarnings = (parseInt(artist.playcount) * 0.004).toFixed(2);
+                
                 // Only fetch if artist has an mbid
                 if (artist.mbid) {
                   const mbInfo = await getMusicBrainzArtistInfo(artist.mbid);
                   if (mbInfo) {
                     return {
                       ...artist,
-                      mbArtistInfo: mbInfo
+                      mbArtistInfo: mbInfo,
+                      estimatedEarnings
                     };
                   }
                 }
+                
+                return {
+                  ...artist,
+                  estimatedEarnings
+                };
               } catch (error) {
                 console.error('Error fetching MB artist info:', error);
+                return {
+                  ...artist,
+                  estimatedEarnings: (parseInt(artist.playcount) * 0.004).toFixed(2)
+                };
               }
-              return artist;
             })
           );
 
+          // Calculate earnings for remaining artists
+          const remainingArtists = artistsData.topartists.artist.slice(5).map(artist => ({
+            ...artist,
+            estimatedEarnings: (parseInt(artist.playcount) * 0.004).toFixed(2)
+          }));
+            
           // Combine the artists with MB info with the rest of the artists
           const allArtists = [
             ...topArtistsWithImages,
-            ...artistsData.topartists.artist.slice(5)
+            ...remainingArtists
           ];
 
           setTopArtists(allArtists);
         }
 
         if (tracksData && tracksData.toptracks && tracksData.toptracks.track) {
-          setTopTracks(tracksData.toptracks.track);
+          // Add estimated earnings to tracks
+          const tracksWithEarnings = tracksData.toptracks.track.map(track => ({
+            ...track,
+            estimatedEarnings: (parseInt(track.playcount) * 0.004).toFixed(2)
+          }));
+          setTopTracks(tracksWithEarnings);
         }
 
         setError(null);
@@ -125,7 +148,7 @@ const StatsScreen = () => {
       <ScrollView style={[styles.container, { backgroundColor: theme.colors.background }]}>
         <ThemedText style={styles.header}>Your Listening Stats</ThemedText>
 
-        <ThemedText style={styles.subheader}>Top Artists</ThemedText>
+        <ThemedText style={styles.subheader}>Top Artists (with streaming earnings)</ThemedText>
 
         {/* Top 5 artists as cards in horizontal scroll */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
@@ -147,7 +170,7 @@ const StatsScreen = () => {
                   {artist.name}
                 </Title>
                 <Paragraph style={[styles.artistCardPlays, { color: theme.colors.text, opacity: 0.7 }]}>
-                  {artist.playcount} plays
+                  {artist.playcount} plays · ${artist.estimatedEarnings}
                 </Paragraph>
               </Card.Content>
             </Card>
@@ -159,7 +182,7 @@ const StatsScreen = () => {
           <List.Item
             key={`artist-${artist.mbid || index}`}
             title={artist.name}
-            description={`Playcount: ${artist.playcount}`}
+            description={`${artist.playcount} plays · $${artist.estimatedEarnings} earned`}
             titleStyle={{ color: theme.colors.text }}
             descriptionStyle={{ color: theme.colors.text, opacity: 0.7 }}
             left={props =>
@@ -174,7 +197,7 @@ const StatsScreen = () => {
           />
         ))}
 
-        <ThemedText style={styles.subheader}>Top Tracks</ThemedText>
+        <ThemedText style={styles.subheader}>Top Tracks (with streaming earnings)</ThemedText>
 
         {/* Top 5 tracks as cards in horizontal scroll */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
@@ -199,7 +222,7 @@ const StatsScreen = () => {
                   {track.artist.name}
                 </Paragraph>
                 <Paragraph style={[styles.trackCardPlays, { color: theme.colors.text, opacity: 0.7 }]}>
-                  {track.playcount} plays
+                  {track.playcount} plays · ${track.estimatedEarnings}
                 </Paragraph>
               </Card.Content>
             </Card>
@@ -211,7 +234,7 @@ const StatsScreen = () => {
           <List.Item
             key={`track-${track.mbid || index}`}
             title={track.name}
-            description={track.artist.name}
+            description={`${track.artist.name} · $${track.estimatedEarnings}`}
             titleStyle={{ color: theme.colors.text }}
             descriptionStyle={{ color: theme.colors.text, opacity: 0.7 }}
             left={props =>
