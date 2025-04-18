@@ -99,6 +99,67 @@ const IconComponent = ({ iconSet, name, size, color }) => {
   }
 };
 
+// Fun loading animation component
+const LoadingAnimation = () => {
+  const animations = Array(3).fill(0).map(() => useRef(new Animated.Value(0)).current);
+  const [emoji] = useState(['🎵', '🎧', '🎸', '🎹', '🥁', '🎺', '🎻'][Math.floor(Math.random() * 7)]);
+  
+  useEffect(() => {
+    const animations_sequence = animations.map((animation, i) => {
+      return Animated.sequence([
+        Animated.delay(i * 150),
+        Animated.loop(
+          Animated.sequence([
+            Animated.timing(animation, {
+              toValue: 1,
+              duration: 500,
+              useNativeDriver: true,
+            }),
+            Animated.timing(animation, {
+              toValue: 0,
+              duration: 500,
+              useNativeDriver: true,
+            }),
+          ])
+        )
+      ]);
+    });
+    
+    Animated.parallel(animations_sequence).start();
+    
+    return () => {
+      animations.forEach(anim => anim.stopAnimation());
+    };
+  }, []);
+
+  return (
+    <View style={styles.loadingContainer}>
+      <ThemedText style={styles.loadingText}>Loading your music data</ThemedText>
+      <View style={styles.loadingIconsContainer}>
+        {animations.map((anim, index) => (
+          <Animated.Text 
+            key={index}
+            style={[
+              styles.loadingEmoji,
+              {
+                opacity: anim,
+                transform: [{
+                  translateY: anim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, -15]
+                  })
+                }]
+              }
+            ]}
+          >
+            {emoji}
+          </Animated.Text>
+        ))}
+      </View>
+    </View>
+  );
+};
+
 const StatsScreen = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -399,7 +460,7 @@ const StatsScreen = () => {
             
             <View style={styles.statsContainer}>
               <View style={styles.statsRow}>
-                <Text style={[styles.statsLabel, { color: theme.colors.text }]}>Plays:</Text>
+                <ThemedText style={styles.statsLabel}>Plays:</ThemedText>
                 <AnimatedCount
                   value={artistData.playCount || 0}
                   style={[styles.statsValue, { color: theme.colors.text }]}
@@ -408,7 +469,7 @@ const StatsScreen = () => {
               </View>
               
               <View style={styles.statsRow}>
-                <Text style={[styles.statsLabel, { color: theme.colors.text }]}>Earnings:</Text>
+                <ThemedText style={styles.statsLabel}>Earnings:</ThemedText>
                 <AnimatedEarnings
                   value={artistData.earnings || '0.0000'}
                   style={[styles.earnings, { backgroundColor: theme.colors.primary, color: 'white' }]}
@@ -421,7 +482,7 @@ const StatsScreen = () => {
             {/* Streaming Links */}
             <View style={styles.linksContainer}>
               <View style={styles.linksSectionHeader}>
-                <Text style={[styles.linksSectionTitle, { color: theme.colors.text }]}>Stream</Text>
+                <ThemedText style={styles.linksSectionTitle}>Stream</ThemedText>
                 <View style={styles.linksRow}>
                   {artistData.streamingLinks?.map(link => (
                     <TouchableOpacity 
@@ -442,7 +503,7 @@ const StatsScreen = () => {
               </View>
               
               <View style={styles.linksSectionHeader}>
-                <Text style={[styles.linksSectionTitle, { color: theme.colors.text }]}>Buy</Text>
+                <ThemedText style={styles.linksSectionTitle}>Buy</ThemedText>
                 <View style={styles.linksRow}>
                   {artistData.purchaseLinks?.map(link => (
                     <TouchableOpacity 
@@ -485,7 +546,7 @@ const StatsScreen = () => {
                   
                   <View style={styles.trackStats}>
                     <View style={styles.statsRow}>
-                      <Text style={[styles.statsLabel, { color: theme.colors.text }]}>Plays:</Text>
+                      <ThemedText style={styles.statsLabel}>Plays:</ThemedText>
                       <AnimatedCount
                         value={track.userplaycount || 0}
                         style={[styles.statsValue, { color: theme.colors.text }]}
@@ -495,7 +556,7 @@ const StatsScreen = () => {
                     </View>
                     
                     <View style={styles.statsRow}>
-                      <Text style={[styles.statsLabel, { color: theme.colors.text }]}>Earnings:</Text>
+                      <ThemedText style={styles.statsLabel}>Earnings:</ThemedText>
                       <AnimatedEarnings
                         value={track.earnings || '0.0000'}
                         style={[styles.earnings, { backgroundColor: theme.colors.accent, color: 'white' }]}
@@ -528,7 +589,7 @@ const StatsScreen = () => {
         <ThemedText style={styles.sectionTitle}>Your Top Artists</ThemedText>
         
         {topArtistsLoading ? (
-          <ActivityIndicator style={styles.loadingIndicator} />
+          <LoadingAnimation />
         ) : (
           <>
             {/* Featured top 3 artists in cards */}
@@ -629,7 +690,7 @@ const StatsScreen = () => {
         )}
         
         {searchLoading ? (
-          <ActivityIndicator style={styles.loadingIndicator} />
+          <LoadingAnimation />
         ) : (
           <ScrollView style={styles.resultsList}>
             {searchResults.map((artist, index) => (
@@ -723,7 +784,7 @@ const StatsScreen = () => {
         {/* Loading indicator for artist details */}
         {loading && (
           <View style={styles.centered}>
-            <ActivityIndicator size="large" />
+            <LoadingAnimation />
           </View>
         )}
         
@@ -802,6 +863,25 @@ const styles = StyleSheet.create({
   },
   loadingIndicator: {
     marginTop: 24,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 20,
+  },
+  loadingText: {
+    fontSize: 18,
+    marginBottom: 20,
+    fontWeight: 'bold',
+  },
+  loadingIconsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingEmoji: {
+    fontSize: 24,
+    marginHorizontal: 8,
   },
   // Artist details
   artistDetails: {

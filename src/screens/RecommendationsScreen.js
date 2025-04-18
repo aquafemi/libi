@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, FlatList, StyleSheet, Linking, Text, TouchableOpacity, Animated } from 'react-native';
-import { Card, Title, Paragraph, ActivityIndicator, useTheme as usePaperTheme } from 'react-native-paper';
+import { View, FlatList, StyleSheet, Linking, Text, TouchableOpacity, Animated, Platform, Keyboard } from 'react-native';
+import { Card, Title, Paragraph, ActivityIndicator, useTheme as usePaperTheme, Button } from 'react-native-paper';
 import { MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import { getUserRecentTracks, getMusicBrainzArtistInfo, getArtistInfo, getUserTopArtists, getTrackInfo } from '../api/lastfm';
 import { getUsername } from '../utils/storage';
@@ -72,13 +72,81 @@ const IconComponent = ({ iconSet, name, size, color }) => {
   }
 };
 
+const ITEMS_PER_PAGE = 10;
+
+// Fun loading animation component
+const LoadingAnimation = () => {
+  const animations = Array(3).fill(0).map(() => useRef(new Animated.Value(0)).current);
+  const [emoji] = useState(['🎵', '🎧', '🎸', '🎹', '🥁', '🎺', '🎻'][Math.floor(Math.random() * 7)]);
+  
+  useEffect(() => {
+    const animations_sequence = animations.map((animation, i) => {
+      return Animated.sequence([
+        Animated.delay(i * 150),
+        Animated.loop(
+          Animated.sequence([
+            Animated.timing(animation, {
+              toValue: 1,
+              duration: 500,
+              useNativeDriver: true,
+            }),
+            Animated.timing(animation, {
+              toValue: 0,
+              duration: 500,
+              useNativeDriver: true,
+            }),
+          ])
+        )
+      ]);
+    });
+    
+    Animated.parallel(animations_sequence).start();
+    
+    return () => {
+      animations.forEach(anim => anim.stopAnimation());
+    };
+  }, []);
+
+  return (
+    <View style={styles.loadingContainer}>
+      <ThemedText style={styles.loadingText}>Loading your music data</ThemedText>
+      <View style={styles.loadingIconsContainer}>
+        {animations.map((anim, index) => (
+          <Animated.Text 
+            key={index}
+            style={[
+              styles.loadingEmoji,
+              {
+                opacity: anim,
+                transform: [{
+                  translateY: anim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, -15]
+                  })
+                }]
+              }
+            ]}
+          >
+            {emoji}
+          </Animated.Text>
+        ))}
+      </View>
+    </View>
+  );
+};
+
 const RecommendationsScreen = () => {
-  const [recommendations, setRecommendations] = useState([]);
+  const [allArtists, setAllArtists] = useState([]);
+  const [displayedArtists, setDisplayedArtists] = useState([]);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [pageChanging, setPageChanging] = useState(false);
   const [error, setError] = useState(null);
   const [username, setUsername] = useState('');
   const { theme } = useTheme();
   const paperTheme = usePaperTheme();
+  const flatListRef = useRef(null);
 
   useEffect(() => {
     // Load saved username when component mounts
@@ -91,6 +159,65 @@ const RecommendationsScreen = () => {
     
     loadUsername();
   }, []);
+  
+  // Add keyboard navigation for pagination (left/right arrows)
+  useEffect(() => {
+    // This would only work in a web environment or with a physical keyboard
+    // For demonstration purposes - might not be applicable on all devices
+    if (Platform.OS === 'web') {
+      const handleKeyDown = (e) => {
+        if (e.key === 'ArrowRight') {
+          handleNextPage();
+        } else if (e.key === 'ArrowLeft') {
+          handlePrevPage();
+        }
+      };
+      
+      document.addEventListener('keydown', handleKeyDown);
+      return () => {
+        document.removeEventListener('keydown', handleKeyDown);
+      };
+    }
+  }, [currentPage, totalPages]);
+
+  // Handle page changes
+  const handleNextPage = () => {
+    if (currentPage < totalPages - 1) {
+      setPageChanging(true);
+      setCurrentPage(currentPage + 1);
+      // Scroll to top when changing pages
+      if (flatListRef.current) {
+        flatListRef.current.scrollToOffset({ offset: 0, animated: true });
+      }
+    }
+  };
+
+  const handlePrevPage = () => {
+    if (currentPage > 0) {
+      setPageChanging(true);
+      setCurrentPage(currentPage - 1);
+      // Scroll to top when changing pages
+      if (flatListRef.current) {
+        flatListRef.current.scrollToOffset({ offset: 0, animated: true });
+      }
+    }
+  };
+  
+  // Update displayed artists when current page changes
+  useEffect(() => {
+    if (allArtists.length > 0) {
+      const startIndex = currentPage * ITEMS_PER_PAGE;
+      const endIndex = startIndex + ITEMS_PER_PAGE;
+      
+      // Small artificial delay for better UX when changing pages
+      const pagingDelay = setTimeout(() => {
+        setDisplayedArtists(allArtists.slice(startIndex, endIndex));
+        setPageChanging(false);
+      }, 300); // Short delay for a smoother transition
+      
+      return () => clearTimeout(pagingDelay);
+    }
+  }, [currentPage, allArtists]);
 
   useEffect(() => {
     const fetchRecommendations = async () => {
@@ -99,8 +226,8 @@ const RecommendationsScreen = () => {
       try {
         setLoading(true);
         
-        // Just fetch recent tracks - limit to 25 for better performance
-        const recentTracksData = await getUserRecentTracks(username, 25);
+        // Fetch a larger number of recent tracks to have enough for pagination
+        const recentTracksData = await getUserRecentTracks(username, 100);
         
         if (!recentTracksData?.recenttracks?.track?.length) {
           throw new Error('No recent tracks found');
@@ -233,19 +360,31 @@ const RecommendationsScreen = () => {
             apiPromises.push(artistInfoPromise, trackInfoPromise);
             
             count++;
-            if (count >= 10) break; // Limit to 10 artists for speed
+            if (count >= 30) break; // Limit to 30 artists (3 pages) for performance
           }
         }
         
-        // Set initial recommendations immediately
-        setRecommendations([...uniqueArtists]);
+        // Set initial artists immediately to show loading state
+        setAllArtists([...uniqueArtists]);
         setLoading(false);
         
         // Then wait for all API calls to finish and update the state
         await Promise.all(apiPromises);
         
-        // Update recommendations with the data from API calls
-        setRecommendations([...uniqueArtists]);
+        // Update all artists with the data from API calls
+        const updatedArtists = [...uniqueArtists];
+        setAllArtists(updatedArtists);
+        
+        // Calculate total pages
+        const pages = Math.ceil(updatedArtists.length / ITEMS_PER_PAGE);
+        setTotalPages(pages);
+        
+        // Reset to first page when data changes
+        setCurrentPage(0);
+        
+        // Immediately update displayed artists
+        setDisplayedArtists(updatedArtists.slice(0, ITEMS_PER_PAGE));
+        
         setError(null);
       } catch (err) {
         setError('Failed to fetch recommendations. Please try again.');
@@ -294,7 +433,7 @@ const RecommendationsScreen = () => {
           </Paragraph>
           <View style={styles.statsContainer}>
             <View style={styles.statsRow}>
-              <Text style={styles.statsLabel}>Artist:</Text>
+              <ThemedText style={styles.statsLabel}>Artist:</ThemedText>
               <View style={styles.statsValueContainer}>
                 <View style={styles.playCountContainer}>
                   <AnimatedCount 
@@ -323,7 +462,7 @@ const RecommendationsScreen = () => {
                 </Paragraph>
                 
                 <View style={styles.statsRow}>
-                  <Text style={styles.statsLabel}>Track:</Text>
+                  <ThemedText style={styles.statsLabel}>Track:</ThemedText>
                   <View style={styles.statsValueContainer}>
                     <View style={styles.playCountContainer}>
                       <AnimatedCount 
@@ -348,7 +487,7 @@ const RecommendationsScreen = () => {
         </View>
         <View style={styles.linksContainer}>
           <View style={styles.linksSectionHeader}>
-            <Text style={[styles.linksSectionTitle, { color: theme.colors.text }]}>Stream</Text>
+            <ThemedText style={styles.linksSectionTitle}>Stream</ThemedText>
             <View style={styles.linksRow}>
               {item.streamingLinks?.map(link => (
                 <TouchableOpacity 
@@ -369,7 +508,7 @@ const RecommendationsScreen = () => {
           </View>
           
           <View style={styles.linksSectionHeader}>
-            <Text style={[styles.linksSectionTitle, { color: theme.colors.text }]}>Buy</Text>
+            <ThemedText style={styles.linksSectionTitle}>Buy</ThemedText>
             <View style={styles.linksRow}>
               {item.purchaseLinks?.map(link => (
                 <TouchableOpacity 
@@ -393,15 +532,15 @@ const RecommendationsScreen = () => {
     </Card>
   );
 
-  if (loading && !recommendations.length) {
+  if (loading && !allArtists.length) {
     return (
       <ThemeAwareScreen style={styles.centered}>
-        <ActivityIndicator size="large" />
+        <LoadingAnimation />
       </ThemeAwareScreen>
     );
   }
 
-  if (error && !recommendations.length) {
+  if (error && !allArtists.length) {
     return (
       <ThemeAwareScreen style={styles.centered}>
         <Text style={{ color: theme.colors.text }}>{error}</Text>
@@ -420,15 +559,72 @@ const RecommendationsScreen = () => {
   return (
     <ThemeAwareScreen>
       <Text style={[styles.header, { color: theme.colors.text }]}>Recent Artists</Text>
-      <Text style={[styles.subheader, { color: theme.colors.text }]}>Artists you've recently played and their earnings</Text>
       
-      <FlatList
-        data={recommendations}
-        renderItem={renderArtistItem}
-        keyExtractor={(item, index) => `${item.mbid || item.name}-${index}`}
-        contentContainerStyle={styles.list}
-        showsVerticalScrollIndicator={false}
-      />
+      <View style={styles.topBar}>
+        <Text style={[styles.subheader, { color: theme.colors.text }]}>
+          Artists you've recently played and their earnings
+        </Text>
+      </View>
+      
+      {pageChanging ? (
+        <View style={styles.pageLoadingContainer}>
+          <LoadingAnimation />
+        </View>
+      ) : (
+        <>
+          <FlatList
+            ref={flatListRef}
+            data={displayedArtists}
+            renderItem={renderArtistItem}
+            keyExtractor={(item, index) => `${item.mbid || item.name}-${index}`}
+            contentContainerStyle={styles.list}
+            showsVerticalScrollIndicator={false}
+          />
+          
+          {/* Pagination controls at the bottom */}
+          {totalPages > 1 && (
+            <View style={[
+              styles.bottomPaginationContainer, 
+              { 
+                backgroundColor: theme.colors.surface + 'F0',
+                borderTopColor: theme.colors.border || 'rgba(0,0,0,0.1)' 
+              }
+            ]}>
+              <View style={styles.paginationContainer}>
+                <Button
+                  mode="outlined"
+                  onPress={handlePrevPage}
+                  disabled={currentPage === 0}
+                  style={[styles.paginationButton, currentPage === 0 && styles.disabledButton]}
+                  contentStyle={styles.paginationButtonContent}
+                  icon={({ size, color }) => (
+                    <MaterialCommunityIcons name="chevron-left" size={size} color={color} />
+                  )}
+                >
+                  Prev
+                </Button>
+                
+                <ThemedText style={styles.simplePageCounter}>
+                  {currentPage + 1} / {totalPages}
+                </ThemedText>
+                
+                <Button
+                  mode="outlined"
+                  onPress={handleNextPage}
+                  disabled={currentPage >= totalPages - 1}
+                  style={[styles.paginationButton, currentPage >= totalPages - 1 && styles.disabledButton]}
+                  contentStyle={{...styles.paginationButtonContent, flexDirection: 'row-reverse', paddingLeft: 8}}
+                  icon={({ size, color }) => (
+                    <MaterialCommunityIcons name="chevron-right" size={size} color={color} />
+                  )}
+                >
+                  Next
+                </Button>
+              </View>
+            </View>
+          )}
+        </>
+      )}
     </ThemeAwareScreen>
   );
 };
@@ -444,15 +640,92 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     padding: 16,
+    paddingBottom: 8,
+  },
+  topBar: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
   },
   subheader: {
     fontSize: 16,
-    paddingHorizontal: 16,
-    paddingBottom: 8,
     opacity: 0.7,
+    marginBottom: 12,
+  },
+  bottomPaginationContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    elevation: 8,
+  },
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    padding: 8,
+  },
+  paginationButton: {
+    minWidth: 100,
+    borderRadius: 20,
+  },
+  paginationButtonContent: {
+    paddingVertical: 4,
+  },
+  pageIndicatorSpacer: {
+    flex: 1,
+    minWidth: 20,
+  },
+  disabledButton: {
+    opacity: 0.4,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    fontSize: 18,
+    marginBottom: 20,
+    fontWeight: 'bold',
+  },
+  loadingIconsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingEmoji: {
+    fontSize: 24,
+    marginHorizontal: 8,
+  },
+  pageLoadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    minHeight: 300,
+  },
+  pageLoadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    opacity: 0.8,
+  },
+  paginationDots: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginVertical: 10,
+    paddingBottom: 5,
+  },
+  simplePageCounter: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    paddingHorizontal: 12,
   },
   list: {
     padding: 8,
+    paddingBottom: 70, // Add padding to account for pagination controls
   },
   card: {
     marginBottom: 16,
