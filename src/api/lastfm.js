@@ -32,14 +32,21 @@ export const getUserRecentTracks = async (username, limit = 50) => {
 };
 
 // Get artist info including images
-export const getArtistInfo = async (artist) => {
+export const getArtistInfo = async (artist, username = null) => {
   try {
+    const params = {
+      method: 'artist.getinfo',
+      artist,
+      autocorrect: 1,
+    };
+    
+    // If username is provided, include it to get user's play count
+    if (username) {
+      params.username = username;
+    }
+    
     const response = await lastfm.get('', {
-      params: {
-        method: 'artist.getinfo',
-        artist,
-        autocorrect: 1,
-      },
+      params: params,
     });
     return response.data;
   } catch (error) {
@@ -143,6 +150,25 @@ export const getAlbumInfo = async (artist, album) => {
     return response.data;
   } catch (error) {
     console.error('Error fetching album info:', error);
+    throw error;
+  }
+};
+
+// Get track info with user's play count
+export const getTrackInfo = async (artist, track, username) => {
+  try {
+    const response = await lastfm.get('', {
+      params: {
+        method: 'track.getinfo',
+        artist,
+        track,
+        username,
+        autocorrect: 1,
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching track info:', error);
     throw error;
   }
 };

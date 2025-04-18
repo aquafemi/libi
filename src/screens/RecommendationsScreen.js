@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, FlatList, StyleSheet, Linking, Text, TouchableOpacity } from 'react-native';
 import { Card, Title, Paragraph, ActivityIndicator, useTheme as usePaperTheme } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { getUserRecentTracks, getMusicBrainzArtistInfo, getArtistInfo } from '../api/lastfm';
+import { getUserRecentTracks, getMusicBrainzArtistInfo, getArtistInfo, getUserTopArtists, getTrackInfo } from '../api/lastfm';
 import { getUsername } from '../utils/storage';
 import { getArtistImage, getTrackImage } from '../utils/imageHelper';
 import { useTheme } from '../utils/themeContext';
@@ -35,28 +35,43 @@ const RecommendationsScreen = () => {
       
       try {
         setLoading(true);
-        // Get user's recently played tracks
-        const recentTracksData = await getUserRecentTracks(username, 100);
+        
+        // Fetch recent tracks and top artists data
+        const [recentTracksData, topArtistsData] = await Promise.all([
+          getUserRecentTracks(username, 50),
+          getUserTopArtists(username, 'overall', 100)
+        ]);
         
         if (!recentTracksData?.recenttracks?.track?.length) {
           throw new Error('No recent tracks found');
         }
         
-        // Extract unique artists and count plays from recent tracks
+        // Create mapping from top artists API for artist play counts
+        const topArtistsMap = {};
+        
+        // Process top artists data
+        if (topArtistsData?.topartists?.artist) {
+          topArtistsData.topartists.artist.forEach(artist => {
+            const artistKey = artist.name.toLowerCase();
+            topArtistsMap[artistKey] = {
+              playcount: parseInt(artist.playcount, 10) || 0,
+              mbid: artist.mbid || ''
+            };
+          });
+        }
+        
+        // Extract unique artists from recent tracks
         const artistSet = new Set();
-        const artistPlayCounts = {};
-        const uniqueArtists = [];
         const artistToTracksMap = {};
         
-        // Count plays per artist and collect tracks by artist
+        // Organize recent tracks by artist
         recentTracksData.recenttracks.track.forEach(track => {
           const artistName = track.artist['#text'] || track.artist.name;
+          
           if (artistName) {
             const artistKey = artistName.toLowerCase();
-            // Count plays
-            artistPlayCounts[artistKey] = (artistPlayCounts[artistKey] || 0) + 1;
             
-            // Store tracks for each artist
+            // Store tracks for each artist (for album art and display)
             if (!artistToTracksMap[artistKey]) {
               artistToTracksMap[artistKey] = [];
             }
@@ -64,84 +79,135 @@ const RecommendationsScreen = () => {
           }
         });
         
-        // Create artist objects with streaming earnings estimates
-        recentTracksData.recenttracks.track.forEach(track => {
+        // Create array to hold artists
+        const uniqueArtists = [];
+        
+        // Process each unique artist from recent tracks
+        for (const track of recentTracksData.recenttracks.track) {
           const artistName = track.artist['#text'] || track.artist.name;
           if (artistName && !artistSet.has(artistName.toLowerCase())) {
             const artistKey = artistName.toLowerCase();
             artistSet.add(artistKey);
             
-            // Get play count for this artist
-            const playCount = artistPlayCounts[artistKey] || 1;
-            
-            // Get recent track for this artist for album artwork
+            // Get recent track for this artist (first one in the list)
             const artistTracks = artistToTracksMap[artistKey] || [];
             const recentTrack = artistTracks.length > 0 ? artistTracks[0] : null;
             
-            // Calculate estimated streaming revenue
-            // Average streaming rate is around $0.004 per stream across platforms
-            const estimatedEarnings = (playCount * 0.004).toFixed(2);
+            if (!recentTrack) continue;
             
-            uniqueArtists.push({
-              name: artistName,
-              playCount: playCount,
-              earnings: estimatedEarnings,
-              // Add MusicBrainz ID if available
-              mbid: track.artist.mbid || null,
-              // Add recent track for album artwork
-              recentTrack: recentTrack,
-              // Add purchase links
-              purchaseLinks: [
-                { 
-                  name: 'iTunes', 
-                  icon: 'apple', 
-                  url: `https://music.apple.com/search?term=${encodeURIComponent(artistName)}`,
-                  color: '#fa243c'
-                },
-                { 
-                  name: 'Amazon', 
-                  icon: 'cart', 
-                  url: `https://www.amazon.com/s?k=${encodeURIComponent(artistName)}+music&i=digital-music`,
-                  color: '#ff9900'
-                },
-                { 
-                  name: 'YouTube', 
-                  icon: 'youtube', 
-                  url: `https://music.youtube.com/search?q=${encodeURIComponent(artistName)}`,
-                  color: '#ff0000'
-                },
-              ]
-            });
+            try {
+              // Get accurate artist play count using artist.getInfo with username
+              const artistInfo = await getArtistInfo(artistName, username);
+              
+              // Extract user's play count for this artist
+              let artistPlayCount = 0;
+              if (artistInfo?.artist?.stats?.userplaycount) {
+                artistPlayCount = parseInt(artistInfo.artist.stats.userplaycount, 10) || 0;
+              }
+              
+              const estimatedEarnings = (artistPlayCount * 0.004).toFixed(4);
+              
+              // Get accurate track play count using track.getInfo
+              const trackInfo = await getTrackInfo(
+                recentTrack.artist['#text'] || recentTrack.artist.name,
+                recentTrack.name,
+                username
+              );
+              
+              // Extract user's play count for this track
+              let trackPlayCount = 0;
+              if (trackInfo?.track?.userplaycount) {
+                trackPlayCount = parseInt(trackInfo.track.userplaycount, 10) || 0;
+              }
+              
+              const trackEarnings = (trackPlayCount * 0.004).toFixed(4);
+              
+              uniqueArtists.push({
+                name: artistName,
+                playCount: artistPlayCount,
+                earnings: estimatedEarnings,
+                // Add MusicBrainz ID if available
+                mbid: track.artist.mbid || artistInfo?.artist?.mbid || '',
+                // Add artist image from artist.getInfo response if available
+                image: artistInfo?.artist?.image || [],
+                // Add recent track and its all-time stats
+                recentTrack: recentTrack,
+                trackPlayCount: trackPlayCount,
+                trackEarnings: trackEarnings,
+                // Add genre from artist tags if available
+                genre: artistInfo?.artist?.tags?.tag?.[0]?.name || 'Recently played',
+                // Add purchase links
+                purchaseLinks: [
+                  { 
+                    name: 'iTunes', 
+                    icon: 'apple', 
+                    url: `https://music.apple.com/search?term=${encodeURIComponent(artistName)}`,
+                    color: '#fa243c'
+                  },
+                  { 
+                    name: 'Amazon', 
+                    icon: 'cart', 
+                    url: `https://www.amazon.com/s?k=${encodeURIComponent(artistName)}+music&i=digital-music`,
+                    color: '#ff9900'
+                  },
+                  { 
+                    name: 'YouTube', 
+                    icon: 'youtube', 
+                    url: `https://music.youtube.com/search?q=${encodeURIComponent(artistName)}`,
+                    color: '#ff0000'
+                  },
+                ]
+              });
+            } catch (error) {
+              console.error(`Error fetching info for artist ${artistName} or track ${recentTrack.name}:`, error);
+              
+              // Fallback to top artists data if the API calls fail
+              const artistAllTimeStats = topArtistsMap[artistKey] || { playcount: 0 };
+              const artistPlayCount = artistAllTimeStats.playcount || 1;
+              const estimatedEarnings = (artistPlayCount * 0.004).toFixed(4);
+              
+              // Add artist with default track stats if API calls fail
+              uniqueArtists.push({
+                name: artistName,
+                playCount: artistPlayCount,
+                earnings: estimatedEarnings,
+                mbid: track.artist.mbid || artistAllTimeStats.mbid,
+                recentTrack: recentTrack,
+                trackPlayCount: 0,
+                trackEarnings: "0.00",
+                genre: 'Recently played',
+                purchaseLinks: [
+                  { 
+                    name: 'iTunes', 
+                    icon: 'apple', 
+                    url: `https://music.apple.com/search?term=${encodeURIComponent(artistName)}`,
+                    color: '#fa243c'
+                  },
+                  { 
+                    name: 'Amazon', 
+                    icon: 'cart', 
+                    url: `https://www.amazon.com/s?k=${encodeURIComponent(artistName)}+music&i=digital-music`,
+                    color: '#ff9900'
+                  },
+                  { 
+                    name: 'YouTube', 
+                    icon: 'youtube', 
+                    url: `https://music.youtube.com/search?q=${encodeURIComponent(artistName)}`,
+                    color: '#ff0000'
+                  },
+                ]
+              });
+            }
+            
+            // Limit to top 20 artists for performance
+            if (uniqueArtists.length >= 20) break;
           }
-        });
+        }
         
-        // Limit to top 20 artists for performance
-        const topRecentArtists = uniqueArtists.slice(0, 20);
-        
-        // Fetch additional artist info to get images
-        const artistInfoPromises = topRecentArtists.map(artist => 
-          getArtistInfo(artist.name).catch(() => null)
-        );
-        
-        const artistInfoResults = await Promise.all(artistInfoPromises);
-        
-        // Merge artist info with our artist objects
-        const enhancedArtists = topRecentArtists.map((artist, index) => {
-          const artistInfo = artistInfoResults[index];
-          if (artistInfo?.artist) {
-            return {
-              ...artist,
-              image: artistInfo.artist.image || [],
-              mbid: artistInfo.artist.mbid || artist.mbid,
-              genre: artistInfo.artist.tags?.tag?.[0]?.name || 'Recently played',
-            };
-          }
-          return artist;
-        });
-        
-        // Get MusicBrainz info for artists (limit to 10 for performance)
+        // Get MusicBrainz info for artists (limit to 10 for performance) 
+        // since we already have artist info with images from the artist.getInfo call
         const processedArtists = await Promise.all(
-          enhancedArtists.slice(0, 10).map(async (artist) => {
+          uniqueArtists.slice(0, 10).map(async (artist) => {
             try {
               // Only fetch if artist has an mbid
               if (artist.mbid) {
@@ -163,7 +229,7 @@ const RecommendationsScreen = () => {
         // Combine the processed artists with any remaining artists
         const allRecommendations = [
           ...processedArtists,
-          ...enhancedArtists.slice(10)
+          ...uniqueArtists.slice(10)
         ];
         
         setRecommendations(allRecommendations);
@@ -213,20 +279,42 @@ const RecommendationsScreen = () => {
           >
             {item.genre || 'Recently played'}
           </Paragraph>
-          <Paragraph 
-            numberOfLines={1} 
-            style={[styles.earningsInfo, { color: theme.colors.text, opacity: 0.7 }]}
-          >
-            {item.playCount} {item.playCount === 1 ? 'play' : 'plays'} · ${item.earnings}
-          </Paragraph>
-          {item.recentTrack && (
-            <Paragraph 
-              numberOfLines={1} 
-              style={[styles.trackInfo, { color: theme.colors.text, opacity: 0.8 }]}
-            >
-              Recent track: "{item.recentTrack.name}"
-            </Paragraph>
-          )}
+          <View style={styles.statsContainer}>
+            <View style={styles.statsRow}>
+              <Text style={styles.statsLabel}>Artist:</Text>
+              <View style={styles.statsValueContainer}>
+                <Text style={[styles.statsValue, { color: theme.colors.text }]}>
+                  {item.playCount.toLocaleString()} {item.playCount === 1 ? 'play' : 'plays'}
+                </Text>
+                <Text style={[styles.earnings, { backgroundColor: theme.colors.primary }]}>
+                  ${parseFloat(item.earnings).toFixed(4)}
+                </Text>
+              </View>
+            </View>
+            
+            {item.recentTrack && (
+              <>
+                <Paragraph 
+                  numberOfLines={1} 
+                  style={[styles.trackInfo, { color: theme.colors.text, opacity: 0.8 }]}
+                >
+                  Recent track: "{item.recentTrack.name}"
+                </Paragraph>
+                
+                <View style={styles.statsRow}>
+                  <Text style={styles.statsLabel}>Track:</Text>
+                  <View style={styles.statsValueContainer}>
+                    <Text style={[styles.statsValue, { color: theme.colors.text }]}>
+                      {item.trackPlayCount.toLocaleString()} {item.trackPlayCount === 1 ? 'play' : 'plays'}
+                    </Text>
+                    <Text style={[styles.earnings, { backgroundColor: theme.colors.accent }]}>
+                      ${parseFloat(item.trackEarnings).toFixed(4)}
+                    </Text>
+                  </View>
+                </View>
+              </>
+            )}
+          </View>
         </View>
         <View style={styles.purchaseContainer}>
           {item.purchaseLinks?.map(link => (
@@ -270,8 +358,8 @@ const RecommendationsScreen = () => {
 
   return (
     <ThemeAwareScreen>
-      <Text style={[styles.header, { color: theme.colors.text }]}>Artists You've Recently Played</Text>
-      <Text style={[styles.subheader, { color: theme.colors.text }]}>How much they've earned from your streams</Text>
+      <Text style={[styles.header, { color: theme.colors.text }]}>Recent Tracks</Text>
+      <Text style={[styles.subheader, { color: theme.colors.text }]}>See how much artists have made from your listening</Text>
       
       <FlatList
         data={recommendations}
@@ -328,20 +416,52 @@ const styles = StyleSheet.create({
   },
   artistInfo: {
     fontSize: 16,
+    marginBottom: 4,
   },
-  earningsInfo: {
+  statsContainer: {
+    marginTop: 6,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 2,
+  },
+  statsLabel: {
     fontSize: 14,
-    marginTop: 2,
+    fontWeight: 'bold',
+    marginRight: 8,
+    width: 45,
+  },
+  statsValueContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  statsValue: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  earnings: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: 'white',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    overflow: 'hidden',
+    fontFamily: 'monospace',
   },
   trackInfo: {
     fontSize: 13,
-    marginTop: 4,
+    marginTop: 8,
+    marginBottom: 2,
     fontStyle: 'italic',
   },
   purchaseContainer: {
     flexDirection: 'row',
     justifyContent: 'flex-start',
-    marginTop: 10,
+    marginTop: 12,
   },
   purchaseButton: {
     width: 40,
