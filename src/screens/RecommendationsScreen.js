@@ -4,7 +4,7 @@ import { Card, Title, Paragraph, ActivityIndicator, useTheme as usePaperTheme } 
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { getUserRecentTracks, getMusicBrainzArtistInfo, getArtistInfo } from '../api/lastfm';
 import { getUsername } from '../utils/storage';
-import { getArtistImage } from '../utils/imageHelper';
+import { getArtistImage, getTrackImage } from '../utils/imageHelper';
 import { useTheme } from '../utils/themeContext';
 import ThemeAwareScreen from '../components/ThemeAwareScreen';
 import ThemedText from '../components/ThemedText';
@@ -46,18 +46,23 @@ const RecommendationsScreen = () => {
         const artistSet = new Set();
         const artistPlayCounts = {};
         const uniqueArtists = [];
+        const artistToTracksMap = {};
         
-        // Count plays per artist and sort by play count
+        // Count plays per artist and collect tracks by artist
         recentTracksData.recenttracks.track.forEach(track => {
           const artistName = track.artist['#text'] || track.artist.name;
           if (artistName) {
             const artistKey = artistName.toLowerCase();
+            // Count plays
             artistPlayCounts[artistKey] = (artistPlayCounts[artistKey] || 0) + 1;
+            
+            // Store tracks for each artist
+            if (!artistToTracksMap[artistKey]) {
+              artistToTracksMap[artistKey] = [];
+            }
+            artistToTracksMap[artistKey].push(track);
           }
         });
-        
-        // Log available icons for debugging
-        console.log('Using Material Community Icons');
         
         // Create artist objects with streaming earnings estimates
         recentTracksData.recenttracks.track.forEach(track => {
@@ -69,9 +74,13 @@ const RecommendationsScreen = () => {
             // Get play count for this artist
             const playCount = artistPlayCounts[artistKey] || 1;
             
+            // Get recent track for this artist for album artwork
+            const artistTracks = artistToTracksMap[artistKey] || [];
+            const recentTrack = artistTracks.length > 0 ? artistTracks[0] : null;
+            
             // Calculate estimated streaming revenue
             // Average streaming rate is around $0.004 per stream across platforms
-            const estimatedEarnings = (playCount * 0.004).toFixed(5);
+            const estimatedEarnings = (playCount * 0.004).toFixed(2);
             
             uniqueArtists.push({
               name: artistName,
@@ -79,6 +88,8 @@ const RecommendationsScreen = () => {
               earnings: estimatedEarnings,
               // Add MusicBrainz ID if available
               mbid: track.artist.mbid || null,
+              // Add recent track for album artwork
+              recentTrack: recentTrack,
               // Add purchase links
               purchaseLinks: [
                 { 
@@ -179,36 +190,57 @@ const RecommendationsScreen = () => {
   };
 
   const renderArtistItem = ({ item }) => (
-    <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
+    <Card 
+      style={[styles.card, { backgroundColor: theme.colors.surface }]}
+      mode="elevated"
+    >
       <Card.Cover 
-        source={{ uri: getArtistImage(item) }} 
-        style={styles.artistImage}
+        source={{ uri: item.recentTrack ? getTrackImage(item.recentTrack) : getArtistImage(item) }} 
+        style={styles.albumArt}
         resizeMode="cover"
       />
-      <View style={[styles.matchBadge, { backgroundColor: theme.colors.primary + 'D9' }]}>
-        <Text style={styles.matchText}>${item.earnings}</Text>
-        <Text style={styles.playCountText}>{item.playCount} {item.playCount === 1 ? 'play' : 'plays'}</Text>
-      </View>
       <Card.Content style={styles.cardContent}>
-        <Title style={[styles.artistTitle, { color: theme.colors.text }]} numberOfLines={1}>{item.name}</Title>
-        <Paragraph style={[styles.artistGenre, { color: theme.colors.text + 'B3' }]} numberOfLines={1}>{item.genre || 'Recently played'}</Paragraph>
-      </Card.Content>
-      <Card.Actions style={styles.cardActions}>
-        {item.purchaseLinks?.map(link => (
-          <TouchableOpacity 
-            key={link.name}
-            onPress={() => openUrl(link.url)}
-            style={[styles.purchaseButton, { backgroundColor: link.color }]}
-            activeOpacity={0.7}
+        <Title 
+          numberOfLines={1} 
+          style={[styles.trackTitle, { color: theme.colors.text }]}
+        >
+          {item.name}
+        </Title>
+        <View style={styles.infoContainer}>
+          <Paragraph 
+            numberOfLines={1} 
+            style={[styles.artistInfo, { color: theme.colors.text }]}
           >
-            <MaterialCommunityIcons 
-              name={link.icon} 
-              size={24} 
-              color="white" 
-            />
-          </TouchableOpacity>
-        ))}
-      </Card.Actions>
+            {item.genre || 'Recently played'}
+          </Paragraph>
+          <Paragraph 
+            numberOfLines={1} 
+            style={[styles.earningsInfo, { color: theme.colors.text, opacity: 0.7 }]}
+          >
+            {item.playCount} {item.playCount === 1 ? 'play' : 'plays'} · ${item.earnings}
+          </Paragraph>
+          {item.recentTrack && (
+            <Paragraph 
+              numberOfLines={1} 
+              style={[styles.trackInfo, { color: theme.colors.text, opacity: 0.8 }]}
+            >
+              Recent track: "{item.recentTrack.name}"
+            </Paragraph>
+          )}
+        </View>
+        <View style={styles.purchaseContainer}>
+          {item.purchaseLinks?.map(link => (
+            <TouchableOpacity 
+              key={link.name}
+              onPress={() => openUrl(link.url)}
+              style={[styles.purchaseButton, { backgroundColor: link.color }]}
+              activeOpacity={0.7}
+            >
+              <MaterialCommunityIcons name={link.icon} size={24} color="white" />
+            </TouchableOpacity>
+          ))}
+        </View>
+      </Card.Content>
     </Card>
   );
 
@@ -237,18 +269,15 @@ const RecommendationsScreen = () => {
   }
 
   return (
-    <ThemeAwareScreen style={styles.container}>
+    <ThemeAwareScreen>
       <Text style={[styles.header, { color: theme.colors.text }]}>Artists You've Recently Played</Text>
       <Text style={[styles.subheader, { color: theme.colors.text }]}>How much they've earned from your streams</Text>
       
-      {/* Display a grid of two columns */}
       <FlatList
         data={recommendations}
         renderItem={renderArtistItem}
         keyExtractor={(item, index) => `${item.mbid || item.name}-${index}`}
         contentContainerStyle={styles.list}
-        numColumns={2}
-        columnWrapperStyle={styles.columnWrapper}
         showsVerticalScrollIndicator={false}
       />
     </ThemeAwareScreen>
@@ -256,9 +285,6 @@ const RecommendationsScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
   centered: {
     flex: 1,
     justifyContent: 'center',
@@ -268,53 +294,54 @@ const styles = StyleSheet.create({
   header: {
     fontSize: 24,
     fontWeight: 'bold',
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 4,
+    padding: 16,
   },
   subheader: {
     fontSize: 16,
     paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingBottom: 8,
     opacity: 0.7,
   },
   list: {
     padding: 8,
   },
-  columnWrapper: {
-    justifyContent: 'space-between',
-  },
   card: {
-    width: '48%',
-    marginBottom: 12,
+    marginBottom: 16,
+    marginHorizontal: 8,
     elevation: 3,
     borderRadius: 10,
     overflow: 'hidden',
-    position: 'relative',
   },
-  artistImage: {
-    height: 150,
+  albumArt: {
+    height: 220,
   },
   cardContent: {
-    paddingVertical: 8,
-    paddingHorizontal: 10,
+    paddingVertical: 12,
   },
-  artistTitle: {
-    fontSize: 16,
+  trackTitle: {
+    fontSize: 18,
     fontWeight: 'bold',
+    marginBottom: 4,
   },
-  artistGenre: {
+  infoContainer: {
+    marginTop: 4,
+  },
+  artistInfo: {
+    fontSize: 16,
+  },
+  earningsInfo: {
+    fontSize: 14,
     marginTop: 2,
-    fontSize: 12,
-    opacity: 0.7,
   },
-  cardActions: {
-    justifyContent: 'space-evenly',
-    paddingVertical: 4,
-    paddingHorizontal: 6,
+  trackInfo: {
+    fontSize: 13,
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  purchaseContainer: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    maxHeight: 70,
+    justifyContent: 'flex-start',
+    marginTop: 10,
   },
   purchaseButton: {
     width: 40,
@@ -322,27 +349,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    margin: 4,
+    marginRight: 8,
     elevation: 2,
-  },
-  matchBadge: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
-    alignItems: 'center',
-  },
-  matchText: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 14,
-  },
-  playCountText: {
-    color: 'white',
-    fontSize: 10,
-    opacity: 0.9,
   },
 });
 
