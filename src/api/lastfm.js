@@ -190,3 +190,20 @@ export const getSimilarArtists = async (artist, limit = 10) => {
     throw error;
   }
 };
+
+// Search for artists on Last.fm
+export const searchArtists = async (query, limit = 10) => {
+  try {
+    const response = await lastfm.get('', {
+      params: {
+        method: 'artist.search',
+        artist: query,
+        limit,
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error searching artists:', error);
+    throw error;
+  }
+};

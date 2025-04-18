@@ -6,7 +6,6 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../utils/themeContext';
 
 // Import screens
-import HomeScreen from '../screens/HomeScreen';
 import StatsScreen from '../screens/StatsScreen';
 import RecommendationsScreen from '../screens/RecommendationsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
@@ -15,11 +14,6 @@ const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
 // Stack navigators for each tab if needed
-const HomeStack = () => (
-  <Stack.Navigator>
-    <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
-  </Stack.Navigator>
-);
 
 const StatsStack = () => (
   <Stack.Navigator>
@@ -53,12 +47,10 @@ const AppNavigator = () => {
           tabBarIcon: ({ focused, color, size }) => {
             let iconName;
 
-            if (route.name === 'HomeTab') {
-              iconName = focused ? 'home' : 'home-outline';
-            } else if (route.name === 'StatsTab') {
+            if (route.name === 'StatsTab') {
               iconName = focused ? 'chart-bar' : 'chart-bar-stacked';
             } else if (route.name === 'RecommendationsTab') {
-              iconName = focused ? 'shopping' : 'shopping-outline';
+              iconName = focused ? 'playlist-music' : 'playlist-music-outline';
             } else if (route.name === 'ProfileTab') {
               iconName = focused ? 'account' : 'account-outline';
             }
@@ -73,14 +65,6 @@ const AppNavigator = () => {
         })}
       >
         <Tab.Screen 
-          name="HomeTab" 
-          component={HomeStack} 
-          options={{ 
-            headerShown: false,
-            title: 'Home'
-          }} 
-        />
-        <Tab.Screen 
           name="StatsTab" 
           component={StatsStack} 
           options={{ 
@@ -93,7 +77,7 @@ const AppNavigator = () => {
           component={RecommendationsStack} 
           options={{ 
             headerShown: false,
-            title: 'Buy Music'
+            title: 'Recent'
           }} 
         />
         <Tab.Screen 

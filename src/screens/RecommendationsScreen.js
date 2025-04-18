@@ -419,8 +419,8 @@ const RecommendationsScreen = () => {
 
   return (
     <ThemeAwareScreen>
-      <Text style={[styles.header, { color: theme.colors.text }]}>Recent Tracks</Text>
-      <Text style={[styles.subheader, { color: theme.colors.text }]}>See how much artists have made from your listening</Text>
+      <Text style={[styles.header, { color: theme.colors.text }]}>Recent Artists</Text>
+      <Text style={[styles.subheader, { color: theme.colors.text }]}>Artists you've recently played and their earnings</Text>
       
       <FlatList
         data={recommendations}
