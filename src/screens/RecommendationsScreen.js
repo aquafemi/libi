@@ -9,6 +9,52 @@ import { useTheme } from '../utils/themeContext';
 import ThemeAwareScreen from '../components/ThemeAwareScreen';
 import ThemedText from '../components/ThemedText';
 
+// Helper function to format a timestamp or date into a relative time string (e.g., "2 hours ago")
+const formatRelativeTime = (timestamp) => {
+  // If no timestamp or it's not properly formatted, return "Recently"
+  if (!timestamp || (!timestamp.uts && !timestamp['#text'])) {
+    return "Recently";
+  }
+  
+  // Try to parse the timestamp (Last.fm provides it in different formats)
+  let date;
+  if (timestamp.uts) {
+    // Unix timestamp (seconds since epoch)
+    date = new Date(timestamp.uts * 1000);
+  } else if (timestamp['#text']) {
+    // Text date format
+    date = new Date(timestamp['#text']);
+  } else {
+    return "Recently";
+  }
+  
+  // Check if date is valid
+  if (isNaN(date.getTime())) {
+    return "Recently";
+  }
+  
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHour = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHour / 24);
+  const diffMonth = Math.floor(diffDay / 30);
+  
+  // Format based on how long ago
+  if (diffMonth > 0) {
+    return diffMonth === 1 ? "1 month ago" : `${diffMonth} months ago`;
+  } else if (diffDay > 0) {
+    return diffDay === 1 ? "Yesterday" : `${diffDay} days ago`;
+  } else if (diffHour > 0) {
+    return diffHour === 1 ? "1 hour ago" : `${diffHour} hours ago`;
+  } else if (diffMin > 0) {
+    return diffMin === 1 ? "1 minute ago" : `${diffMin} minutes ago`;
+  } else {
+    return "Just now";
+  }
+};
+
 // Animated count component for number animation
 const AnimatedCount = ({ value, style, suffix = '', prefix = '', duration = 1500, delay = 0, decimalPlaces = 0 }) => {
   const animatedValue = useRef(new Animated.Value(0)).current;
@@ -420,29 +466,50 @@ const RecommendationsScreen = () => {
       <Card.Content style={styles.cardContent}>
         <Title 
           numberOfLines={1} 
-          style={[styles.trackTitle, { color: theme.colors.text }]}
+          style={[styles.cardTitle, { color: theme.colors.text }]}
         >
-          {item.name}
+          {item.recentTrack?.date ? formatRelativeTime(item.recentTrack.date) : (item.recentTrack?.['@attr']?.nowplaying === 'true' ? 'Now Playing' : 'Recently')}
         </Title>
         <View style={styles.infoContainer}>
-          <Paragraph 
-            numberOfLines={1} 
-            style={[styles.artistInfo, { color: theme.colors.text }]}
-          >
-            {item.genre || 'Recently played'}
-          </Paragraph>
           <View style={styles.statsContainer}>
-            <View style={styles.statsRow}>
-              <ThemedText style={styles.statsLabel}>Artist:</ThemedText>
-              <View style={styles.statsValueContainer}>
-                <View style={styles.playCountContainer}>
+            {/* Track stats row with name and play count side by side */}
+            {item.recentTrack && (
+              <View style={styles.trackInfoRow}>
+                <View style={styles.nameContainer}>
+                  <ThemedText style={styles.infoLabel}>Track</ThemedText>
+                  <ThemedText style={styles.trackName} numberOfLines={1}>{item.recentTrack.name}</ThemedText>
+                </View>
+                <View style={styles.countContainer}>
                   <AnimatedCount 
-                    value={item.playCount} 
-                    style={[styles.statsValue, { color: theme.colors.text }]}
+                    value={item.trackPlayCount} 
+                    style={[styles.statCount, { color: theme.colors.text }]}
                     duration={1800}
-                    suffix={item.playCount === 1 ? " play" : " plays"}
+                    delay={400}
+                    suffix={item.trackPlayCount === 1 ? " play" : " plays"}
+                  />
+                  <AnimatedEarnings 
+                    value={item.trackEarnings} 
+                    style={[styles.earnings, { backgroundColor: theme.colors.accent }]} 
+                    duration={1500}
+                    delay={700}
                   />
                 </View>
+              </View>
+            )}
+            
+            {/* Artist row with name and play count side by side */}
+            <View style={styles.artistInfoRow}>
+              <View style={styles.nameContainer}>
+                <ThemedText style={styles.infoLabel}>Artist</ThemedText>
+                <ThemedText style={styles.artistName} numberOfLines={1}>{item.name}</ThemedText>
+              </View>
+              <View style={styles.countContainer}>
+                <AnimatedCount 
+                  value={item.playCount} 
+                  style={[styles.statCount, { color: theme.colors.text }]}
+                  duration={1800}
+                  suffix={item.playCount === 1 ? " play" : " plays"}
+                />
                 <AnimatedEarnings 
                   value={item.earnings} 
                   style={[styles.earnings, { backgroundColor: theme.colors.primary }]} 
@@ -451,38 +518,6 @@ const RecommendationsScreen = () => {
                 />
               </View>
             </View>
-            
-            {item.recentTrack && (
-              <>
-                <Paragraph 
-                  numberOfLines={1} 
-                  style={[styles.trackInfo, { color: theme.colors.text, opacity: 0.8 }]}
-                >
-                  Recent track: "{item.recentTrack.name}"
-                </Paragraph>
-                
-                <View style={styles.statsRow}>
-                  <ThemedText style={styles.statsLabel}>Track:</ThemedText>
-                  <View style={styles.statsValueContainer}>
-                    <View style={styles.playCountContainer}>
-                      <AnimatedCount 
-                        value={item.trackPlayCount} 
-                        style={[styles.statsValue, { color: theme.colors.text }]}
-                        duration={1800}
-                        delay={400}
-                        suffix={item.trackPlayCount === 1 ? " play" : " plays"}
-                      />
-                    </View>
-                    <AnimatedEarnings 
-                      value={item.trackEarnings} 
-                      style={[styles.earnings, { backgroundColor: theme.colors.accent }]} 
-                      duration={1500}
-                      delay={700}
-                    />
-                  </View>
-                </View>
-              </>
-            )}
           </View>
         </View>
         <View style={styles.linksContainer}>
@@ -558,11 +593,11 @@ const RecommendationsScreen = () => {
 
   return (
     <ThemeAwareScreen>
-      <Text style={[styles.header, { color: theme.colors.text }]}>Recent Artists</Text>
+      <Text style={[styles.header, { color: theme.colors.text }]}>Recent Activity</Text>
       
       <View style={styles.topBar}>
         <Text style={[styles.subheader, { color: theme.colors.text }]}>
-          Artists you've recently played and their earnings
+          Your recent listening history and earnings
         </Text>
       </View>
       
@@ -740,45 +775,58 @@ const styles = StyleSheet.create({
   cardContent: {
     paddingVertical: 12,
   },
-  trackTitle: {
-    fontSize: 18,
+  cardTitle: {
+    fontSize: 20,
     fontWeight: 'bold',
-    marginBottom: 4,
+    marginBottom: 2,
+    color: '#444',
   },
   infoContainer: {
-    marginTop: 4,
-  },
-  artistInfo: {
-    fontSize: 16,
-    marginBottom: 4,
+    marginTop: 10,
   },
   statsContainer: {
     marginTop: 6,
   },
-  statsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 2,
-  },
-  statsLabel: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    marginRight: 8,
-    width: 45,
-  },
-  statsValueContainer: {
-    flex: 1,
+  trackInfoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.05)',
   },
-  playCountContainer: {
+  artistInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginVertical: 6,
+  },
+  nameContainer: {
+    flex: 3,
+    paddingRight: 8,
+  },
+  countContainer: {
     flex: 1,
-    justifyContent: 'center',
+    alignItems: 'flex-end',
   },
-  statsValue: {
+  infoLabel: {
+    fontSize: 12,
+    opacity: 0.7,
+    marginBottom: 2,
+  },
+  artistName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  trackName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  statCount: {
     fontSize: 14,
     fontWeight: '500',
+    textAlign: 'right',
   },
   earnings: {
     fontSize: 13,
@@ -789,12 +837,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
     fontFamily: 'monospace',
-  },
-  trackInfo: {
-    fontSize: 13,
-    marginTop: 8,
-    marginBottom: 2,
-    fontStyle: 'italic',
+    marginTop: 4,
   },
   linksContainer: {
     marginTop: 12,
